@@ -2,12 +2,15 @@
 from flask import Blueprint, request, jsonify
 from app.processors.code_processor import CodeProcessor
 import time
+import logging
 
 # Create blueprint
 openai_bp = Blueprint('openai', __name__)
 
 # Initialize code processor
 code_processor = CodeProcessor()
+
+logger = logging.getLogger(__name__)
 
 @openai_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
@@ -42,11 +45,20 @@ def chat_completions():
     if not user_message:
         return jsonify({"error": "No user message found"}), 400
     
+    logger.info(f"OpenAI-compatible request received:")
+    logger.info(f"  Model: {model}")
+    logger.info(f"  Stream: {stream}")
+    logger.info(f"  User message length: {len(user_message)}")
+    
     # Analyze the message to detect patterns
     pattern_data = code_processor.pattern_detector.detect_pattern(user_message)
     
     if pattern_data:
-        print(f"PATTERN: {pattern_data['pattern']}")
+        logger.info(f"PATTERN DETECTED: {pattern_data['pattern']}")
+        if 'language' in pattern_data:
+            logger.info(f"  Language: {pattern_data['language']}")
+        if 'code' in pattern_data and pattern_data['code']:
+            logger.info(f"  Code length: {len(pattern_data['code'])}")
     else:
         print("PATTERN: None")
 
