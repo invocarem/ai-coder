@@ -28,7 +28,7 @@ def chat_completions():
         "max_tokens": 4096
     }
     """
-    data = request.json
+    data = request.json or {}
 
     # Extract messages from the request
     messages = data.get('messages', [])

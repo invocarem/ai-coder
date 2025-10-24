@@ -2,10 +2,13 @@
 import json
 import time
 import requests
+import logging
+
 from flask import jsonify, Response
 from app.utils.pattern_detector import PatternDetector
 from app.utils.ai_provider import AIProviderFactory
 from app.config import load_config
+logger = logging.getLogger(__name__)
 
 class CodeProcessor:
     def __init__(self):
@@ -71,6 +74,12 @@ class CodeProcessor:
                 "top_p": data.get('top_p', 0.9),
                 "max_tokens": data.get('max_tokens', 4096)
             }
+
+            # DEBUG: Log the messages being sent
+            messages = [{"role": "user", "content": filled_prompt}]
+            logger.debug("=== MESSAGES SENT TO AI ===")
+            logger.debug(json.dumps(messages, indent=2))
+            logger.debug("=== END MESSAGES ===")
 
             if stream:
                 # Handle streaming response using OpenAI-compatible format
@@ -184,11 +193,11 @@ class CodeProcessor:
         # Pattern-specific validations
         if pattern == "generate_function":
             if not task:
-                return jsonify({"error": "Task description is required for generate_function pattern"}), 400
+                return jsonify({"error": "Task description is required"}), 400
                 
         elif pattern in ["fix_bug", "explain_code", "refactor_code", "write_tests", "add_docs"]:
             if not code:
-                return jsonify({"error": f"Code is required for {pattern} pattern"}), 400
+                return jsonify({"error": f"Code is required"}), 400
                 
         elif pattern == "custom":
             if not prompt:
@@ -255,6 +264,11 @@ class CodeProcessor:
                     task=pattern_data.get('task', ''),
                     issue=pattern_data.get('issue', '')
                 )
+
+            # DEBUG: Log the final prompt being sent to AI
+            logger.info("=== FINAL PROMPT SENT TO AI ===")
+            logger.info(filled_prompt)
+            logger.info("=== END PROMPT ===")
             
             # Use OpenAI-compatible format
             messages = [{"role": "user", "content": filled_prompt}]

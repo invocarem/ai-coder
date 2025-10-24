@@ -18,6 +18,11 @@ class PatternDetector:
         Returns:
             dict or None: Pattern data if detected, None otherwise
         """
+        # First check for structured format
+        structured_data = self._parse_structured_format(message)
+        if structured_data:
+            return structured_data
+            
         message_lower = message.lower()
         
         # Only check for exact pattern names
@@ -73,6 +78,44 @@ class PatternDetector:
         
         # For custom prompts that don't match any pattern
         return None
+    
+    def _parse_structured_format(self, message):
+        """Parse structured ###Key: value format with code blocks"""
+        # Make the regex case-insensitive for the key names
+        pattern_match = re.search(r'###\s*Pattern:\s*(.+?)(?=###|\n\n|\n```|$)', message, re.IGNORECASE | re.DOTALL)
+        issue_match = re.search(r'###\s*Issue:\s*(.+?)(?=###|\n\n|\n```|$)', message, re.IGNORECASE | re.DOTALL)
+        rules_match = re.search(r'###\s*Rules:\s*(.+?)(?=###|\n\n|\n```|$)', message, re.IGNORECASE | re.DOTALL)
+        code_match = re.search(r'```(\w+)?\s*(.*?)```', message, re.DOTALL)
+        
+        if pattern_match and code_match:
+            pattern_name = pattern_match.group(1).strip().lower()
+            
+            # Map pattern names to internal patterns
+            pattern_map = {
+                'fix_bug': 'fix_bug',
+                'write_code': 'generate_function',
+                'refactor_code': 'refactor_code',
+                'write_test': 'write_tests',
+                'explain_code': 'explain_code',
+                'add_docs': 'add_docs',
+                'custom': 'custom'
+            }
+            
+            internal_pattern = pattern_map.get(pattern_name)
+            if internal_pattern:
+                clean_issue = issue_match.group(1).strip() if issue_match else ''
+                clean_rules = rules_match.group(1).strip() if rules_match else ''
+                
+                return {
+                    'pattern': internal_pattern,
+                    'issue': clean_issue,
+                    'rules': clean_rules,
+                    'code': code_match.group(2).strip(),
+                    'language': code_match.group(1) if code_match.group(1) else 'Python'
+                }
+                
+        return None
+    
 
     def _extract_task_after_pattern(self, message, pattern):
         """Extract the task description after the specific pattern name"""
