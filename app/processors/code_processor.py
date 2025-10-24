@@ -3,16 +3,16 @@ import json
 import time
 import requests
 from flask import jsonify, Response
-from ..utils.pattern_detector import PatternDetector
-from ..utils.ollama_client import OllamaClient
-from ..config import load_config
+from app.utils.pattern_detector import PatternDetector
+from app.utils.ai_provider import AIProviderFactory
+from app.config import load_config
 
 class CodeProcessor:
     def __init__(self):
         """Initialize the code processor with configuration and dependencies"""
         self.config = load_config()
         self.pattern_detector = PatternDetector()
-        self.ollama_client = OllamaClient(self.config)
+        self.ai_provider = AIProviderFactory.create_provider(self.config)
         self.default_model = self.config["DEFAULT_MODEL"]
         
         # Define prompt templates for different code generation patterns
@@ -65,29 +65,103 @@ class CodeProcessor:
                     issue=issue
                 )
 
-            # Prepare payload for Ollama
-            payload = {
-                "model": model,
-                "prompt": filled_prompt,
-                "stream": stream,
-                "options": {
-                    "temperature": data.get('temperature', 0.1),
-                    "top_p": data.get('top_p', 0.9),
-                    "top_k": data.get('top_k', 40),
-                    "num_predict": data.get('max_tokens', 4096)
-                }
+            # Prepare parameters for AI provider
+            options = {
+                "temperature": data.get('temperature', 0.1),
+                "top_p": data.get('top_p', 0.9),
+                "max_tokens": data.get('max_tokens', 4096)
             }
 
             if stream:
-                return self.ollama_client.generate_openai_compatible(payload, stream, model)
+                # Handle streaming response using OpenAI-compatible format
+                messages = [{"role": "user", "content": filled_prompt}]
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=True, **options)
+                return self._format_streaming_response(response, model)
             else:
-                response = self.ollama_client.generate(payload, stream=False)
-                return jsonify({"text": response["response"]})
+                # Handle non-streaming response
+                messages = [{"role": "user", "content": filled_prompt}]
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=False, **options)
+                
+                # Extract response based on provider
+                if hasattr(response, 'get') and 'choices' in response:  # OpenAI format
+                    text = response["choices"][0]["message"]["content"]
+                elif hasattr(response, 'get') and 'response' in response:  # Ollama format
+                    text = response["response"]
+                else:
+                    text = str(response)
+                    
+                return jsonify({"text": text})            
                 
         except requests.exceptions.RequestException as e:
-            return jsonify({"error": f"Ollama connection error: {str(e)}"}), 503
+            return jsonify({"error": f"AI provider connection error: {str(e)}"}), 503
         except Exception as e:
             return jsonify({"error": f"Code generation failed: {str(e)}"}), 500
+
+    def _format_streaming_response(self, response, model):
+        """Format streaming response in OpenAI-compatible format"""
+        def generate():
+            for line in response:
+                if line:
+                    try:
+                        # Decode bytes to string if needed
+                        if isinstance(line, bytes):
+                            line = line.decode('utf-8')
+                        
+                        # Parse the response line based on provider format
+                        if line.startswith('data: '):
+                            # OpenAI format
+                            data = json.loads(line[6:])
+                            if 'choices' in data and data['choices']:
+                                content = data['choices'][0].get('delta', {}).get('content', '')
+                                if content:
+                                    yield f"data: {json.dumps({
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': None
+                                        }]
+                                    })}\n\n"
+                        else:
+                            # Ollama format
+                            data = json.loads(line)
+                            content = data.get('response', '')
+                            if content:
+                                yield f"data: {json.dumps({
+                                    'id': f'chatcmpl-{int(time.time())}',
+                                    'object': 'chat.completion.chunk',
+                                    'created': int(time.time()),
+                                    'model': model,
+                                    'choices': [{
+                                        'index': 0,
+                                        'delta': {'content': content},
+                                        'finish_reason': None
+                                    }]
+                                })}\n\n"
+                    except json.JSONDecodeError:
+                        continue
+                    except Exception as e:
+                        print(f"Error processing stream line: {e}")
+                        continue
+            
+            # Send final done chunk
+            yield f"data: {json.dumps({
+                'id': f'chatcmpl-{int(time.time())}',
+                'object': 'chat.completion.chunk',
+                'created': int(time.time()),
+                'model': model,
+                'choices': [{
+                    'index': 0,
+                    'delta': {},
+                    'finish_reason': 'stop'
+                }]
+            })}\n\n"
+            yield "data: [DONE]\n\n"
+        
+        return Response(generate(), mimetype='text/event-stream')
 
     def _validate_pattern_data(self, pattern, language, code, task, prompt):
         """
@@ -153,7 +227,7 @@ class CodeProcessor:
             if pattern_data:
                 return self._handle_pattern_request(pattern_data, model, stream, data)
             else:
-                return self._handle_direct_ollama(user_message, model, stream, data)
+                return self._handle_direct_request(user_message, model, stream, data)
                 
         except Exception as e:
             return jsonify({"error": f"Chat completion failed: {str(e)}"}), 500
@@ -182,26 +256,27 @@ class CodeProcessor:
                     issue=pattern_data.get('issue', '')
                 )
             
-            payload = {
-                "model": model,
-                "prompt": filled_prompt,
-                "stream": stream,
-                "options": {
-                    "temperature": original_data.get('temperature', 0.1),
-                    "top_p": original_data.get('top_p', 0.9),
-                    "top_k": original_data.get('top_k', 40),
-                    "num_predict": original_data.get('max_tokens', 4096)
-                }
+            # Use OpenAI-compatible format
+            messages = [{"role": "user", "content": filled_prompt}]
+            options = {
+                "temperature": original_data.get('temperature', 0.1),
+                "top_p": original_data.get('top_p', 0.9),
+                "max_tokens": original_data.get('max_tokens', 4096)
             }
             
-            return self.ollama_client.generate_openai_compatible(payload, stream, model)
+            if stream:
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=True, **options)
+                return self._format_streaming_response(response, model)
+            else:
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=False, **options)
+                return self._format_openai_response(response, model)
             
         except Exception as e:
             return jsonify({"error": f"Pattern processing failed: {str(e)}"}), 500
 
-    def _handle_direct_ollama(self, message, model, stream, original_data):
+    def _handle_direct_request(self, message, model, stream, original_data):
         """
-        Fallback to direct Ollama call for general conversation
+        Fallback to direct AI provider call for general conversation
         
         Args:
             message (str): User message
@@ -210,28 +285,55 @@ class CodeProcessor:
             original_data (dict): Original request data
             
         Returns:
-            Flask Response: Direct Ollama response
+            Flask Response: Direct AI provider response
         """
         try:
-            # Format message for Ollama
-            prompt = f"user: {message}\nassistant: "
-            
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "stream": stream,
-                "options": {
-                    "temperature": original_data.get('temperature', 0.1),
-                    "top_p": original_data.get('top_p', 0.9),
-                    "top_k": original_data.get('top_k', 40),
-                    "num_predict": original_data.get('max_tokens', 4096)
-                }
+            # Use OpenAI-compatible format
+            messages = [{"role": "user", "content": message}]
+            options = {
+                "temperature": original_data.get('temperature', 0.1),
+                "top_p": original_data.get('top_p', 0.9),
+                "max_tokens": original_data.get('max_tokens', 4096)
             }
             
-            return self.ollama_client.generate_openai_compatible(payload, stream, model)
+            if stream:
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=True, **options)
+                return self._format_streaming_response(response, model)
+            else:
+                response = self.ai_provider.generate_openai_compatible(messages, model, stream=False, **options)
+                return self._format_openai_response(response, model)
             
         except Exception as e:
-            return jsonify({"error": f"Direct Ollama call failed: {str(e)}"}), 500
+            return jsonify({"error": f"Direct AI call failed: {str(e)}"}), 500
+
+    def _format_openai_response(self, response, model):
+        """Format non-streaming response in OpenAI-compatible format"""
+        if hasattr(response, 'get') and 'choices' in response:  # OpenAI format
+            content = response["choices"][0]["message"]["content"]
+        elif hasattr(response, 'get') and 'response' in response:  # Ollama format
+            content = response["response"]
+        else:
+            content = str(response)
+        
+        return jsonify({
+            "id": f"chatcmpl-{int(time.time())}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant", 
+                    "content": content
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0
+            }
+        })
 
     def health_check(self):
         """
@@ -241,20 +343,21 @@ class CodeProcessor:
             Flask Response: Health status
         """
         try:
-            ollama_healthy = self.ollama_client.check_health()
-            status = "healthy" if ollama_healthy else "unhealthy"
+            # For now, just check if we can create a provider
+            # You might want to add actual health checks per provider later
+            provider_type = self.config.get("AI_PROVIDER", "ollama")
             
             return jsonify({
-                "status": status,
-                "ollama_connected": ollama_healthy,
+                "status": "healthy",
+                "ai_provider": provider_type,
                 "default_model": self.default_model,
-                "ollama_base_url": self.ollama_client.base_url
+                "provider_connected": True  # Basic check for now
             })
             
         except Exception as e:
             return jsonify({
                 "status": "unhealthy",
-                "ollama_connected": False,
+                "ai_provider": self.config.get("AI_PROVIDER", "unknown"),
                 "error": str(e)
             }), 500
 
@@ -337,7 +440,7 @@ class CodeProcessor:
             "version": "1.0.0",
             "default_model": self.default_model,
             "supported_patterns": list(self.prompt_patterns.keys()),
-            "ollama_base_url": self.ollama_client.base_url,
+            "ai_provider": self.config.get("AI_PROVIDER", "ollama"),
             "max_tokens": 4096,
             "default_temperature": 0.1
         }

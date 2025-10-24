@@ -54,8 +54,7 @@ def chat_completions():
         # Use the generate_code endpoint logic
         return code_processor._handle_pattern_request(pattern_data, model, stream, data)
     else:
-        # Fall back to direct Ollama call for general conversation
-        return code_processor._handle_direct_ollama(user_message, model, stream, data)
+        return code_processor._handle_direct_request(user_message, model, stream, data)
 
 @openai_bp.route('/v1/models', methods=['GET'])
 def list_models():
