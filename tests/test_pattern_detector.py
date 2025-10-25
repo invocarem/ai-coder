@@ -298,14 +298,14 @@ Some additional text here."""
     def test_code_extraction_with_comments(self, detector):
         """Test code extraction with extensive comments like your Swift example"""
         message = """### Pattern: explain_code
-    ### Language: Swift
-    ### Code
-    private let text = [
-        /* 1 */ "Benedictus Dominus die quotidie; prosperum iter faciet nobis Deus salutarium nostrorum.",
-        /* 2 */ "Deus noster, Deus salvos faciendi; et Domini Domini exitus mortis.",
-        /* 3 */ "Verumtamen Deus confringet capita inimicorum suorum, verticem capilli perambulantium in delictis suis.",
-        /* 4 */ "Dixit Dominus: Ex Basan convertam, convertam in profundum maris."
-    ]"""
+        ### Language: Swift
+        ### Code
+        private let text = [
+            /* 1 */ "Benedictus Dominus die quotidie; prosperum iter faciet nobis Deus salutarium nostrorum.",
+            /* 2 */ "Deus noster, Deus salvos faciendi; et Domini Domini exitus mortis.",
+            /* 3 */ "Verumtamen Deus confringet capita inimicorum suorum, verticem capilli perambulantium in delictis suis.",
+            /* 4 */ "Dixit Dominus: Ex Basan convertam, convertam in profundum maris."
+        ]"""
         
         result = detector.detect_pattern(message)
         
@@ -315,3 +315,64 @@ Some additional text here."""
         assert len(result['code']) > 0
         assert 'private let text' in result['code']
         assert 'Benedictus Dominus' in result['code']
+
+
+
+    def test_state_machine_structured_format_basic(self, detector):
+        """Test state machine parsing with basic structured format"""
+        message = """### Pattern: explain_code
+        ### Language: Swift
+        ### Code
+        private let text = ["hello"]"""
+        
+        result = detector._parse_structured_format(message)
+        
+        if result:
+            print(f"DEBUG - Code content: '{result['code']}'")
+            print(f"DEBUG - Code length: {len(result['code'])}")
+            print(f"DEBUG - Code repr: {repr(result['code'])}")
+
+        assert result is not None
+        assert result['pattern'] == 'explain_code'
+        assert result['language'] == 'Swift'
+        assert 'private let text' in result['code']
+
+    def test_state_machine_multiline_values(self, detector):
+        """Test state machine with multi-line task and issue"""
+        message = """### Pattern: fix_bug
+        ### Task: This is a multi-line
+        task description that continues
+        on multiple lines
+        ### Language: python
+        ### Issue: The issue also spans
+        multiple lines for clarity
+        ### Code
+        def test():
+            return x"""
+            
+        result = detector._parse_structured_format(message)
+        
+        assert result is not None
+        assert result['pattern'] == 'fix_bug'
+        assert 'multi-line\ntask description' in result['task']
+        assert 'spans\nmultiple lines' in result['issue']
+        assert 'def test():' in result['code']
+
+    def test_state_machine_mixed_markers(self, detector):
+        """Test state machine with mixed ### and ``` markers"""
+        message = """### Pattern: write_code
+        ### Language: javascript
+        ### Task: Create a function
+        ```javascript
+        function hello() {
+            return "world";
+        }
+        ```
+        Some explanation here."""
+        result = detector._parse_structured_format(message)
+
+        assert result is not None
+        assert result['pattern'] == 'generate_function'
+        assert result['language'] == 'javascript'
+        assert 'function hello()' in result['code']
+        assert 'Some explanation here.' not in result['code']

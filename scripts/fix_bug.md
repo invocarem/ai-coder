@@ -1,9 +1,10 @@
 ### Pattern: fix_bug
-### Issue:  /* N */ is non-sequencial
+### Issue:  /* N */ in the array, please remove all comments
 ### Language: swift
+### Task: remove comments in the array
 ### Rules:
-- A string  trailing with ',' is a vaild array element in Swift.
-- remove /* N */ comment in the code
+- keep indention of elements of the array
+- each element is separated by comma followed by line end , don't merge it 
 
 ### Code:
 private let text = [
