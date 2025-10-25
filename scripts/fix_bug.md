@@ -1,12 +1,20 @@
-### Pattern: fix_bug
-### Issue:  /* N */ in the array, please remove all comments
-### Language: swift
-### Task: remove comments in the array
-### Rules:
-- keep indention of elements of the array
-- each element is separated by comma followed by line end , don't merge it 
+### Pattern
+bug_fix
 
-### Code:
+### Language
+Swift
+
+### Issue 
+Comment /* ... */ is not correct
+
+### RULES
+
+1. Remove all comments in the array including /* 14 */ and /* 15 */
+2. Remove any leading whitespace of each string
+3. Capitalize the first letter of each string (only the first character).
+4. Keep everything else exactly the same — punctuation, spelling, and order.
+
+```swift
 private let text = [
     /* 1 */ "Benedictus Dominus die quotidie; prosperum iter faciet nobis Deus salutarium nostrorum.",
     /* 2 */ "Deus noster, Deus salvos faciendi; et Domini Domini exitus mortis.",
