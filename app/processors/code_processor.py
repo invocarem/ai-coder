@@ -21,7 +21,15 @@ class CodeProcessor:
         # Define prompt templates for different code generation patterns
         self.prompt_patterns = {
             "generate_function": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
-            "fix_bug": "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Provide the fixed code with comments explaining the changes.",
+            "fix_bug": 
+            """Fix this {language} code bug:
+```{language}
+{code}
+ Issue: {issue}
+ Additional Rules:
+ {rules} 
+ """
+            "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Provide the fixed code with comments explaining the changes.",
             "explain_code": "Explain how this {language} code works: ```{language}\n{code}\n```. Provide a clear explanation of what the code does, how it works, and any important details.",
             "refactor_code": "Refactor this {language} code for better readability and performance: ```{language}\n{code}\n```. Provide the refactored code with comments explaining the improvements.",
             "write_tests": "Write comprehensive unit tests for this {language} function: ```{language}\n{code}\n```. Include test cases for edge cases and normal scenarios.",
@@ -258,11 +266,19 @@ class CodeProcessor:
             if pattern_data['pattern'] == 'custom':
                 filled_prompt = pattern_data.get('prompt', '')
             else:
+                # Get all required parameters with defaults
+                language = pattern_data.get('language', 'Python')
+                code = pattern_data.get('code', '')
+                task = pattern_data.get('task', '')
+                issue = pattern_data.get('issue', '')
+                rules = pattern_data.get('rules', '')  # Add rules extraction
+            
                 filled_prompt = self.prompt_patterns[pattern_data['pattern']].format(
-                    language=pattern_data.get('language', 'Python'),
-                    code=pattern_data.get('code', ''),
-                    task=pattern_data.get('task', ''),
-                    issue=pattern_data.get('issue', '')
+                    language=language,
+                    code=code,
+                    task=task,
+                    issue=issue,
+                    rules=rules  # Add rules parameter
                 )
 
             # DEBUG: Log the final prompt being sent to AI

@@ -49,6 +49,8 @@ def chat_completions():
     logger.info(f"  Model: {model}")
     logger.info(f"  Stream: {stream}")
     logger.info(f"  User message length: {len(user_message)}")
+    logger.info(f"  User message preview: {user_message[:100]}...")
+    logger.info(f"  User message contains 'fix this': {'fix this' in user_message.lower()}")
     
     # Analyze the message to detect patterns
     pattern_data = code_processor.pattern_detector.detect_pattern(user_message)

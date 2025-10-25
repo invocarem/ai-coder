@@ -624,3 +624,15 @@ For issues and questions:
 - Create an issue in the repository
 - Check the configuration and logs
 - Ensure your AI provider is properly configured and running
+
+
+### Test pattern_detector
+
+```bash
+$ pytest tests/test_pattern_detector.py::TestPatternDetector::test_extract_code_blocks_with_blank_lines -v -s
+
+$ pytest tests/test_pattern_detector.py::TestPatternDetector::test_real_world_explain_code_scenario -v -s
+
+# Test all pattern detector tests
+pytest tests/test_pattern_detector.py -v
+```
