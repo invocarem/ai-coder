@@ -11,7 +11,7 @@ Comment /* ... */ is not correct
 
 1. Remove all comments in the array including /* 14 */ and /* 15 */
 2. Remove any leading whitespace of each string
-3. Capitalize the first letter of each string (only the first character).
+3. Capitalize the first character of each string (only the first character).
 4. Keep everything else exactly the same — punctuation, spelling, and order.
 
 ```swift

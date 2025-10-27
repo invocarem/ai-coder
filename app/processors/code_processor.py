@@ -21,15 +21,9 @@ class CodeProcessor:
         # Define prompt templates for different code generation patterns
         self.prompt_patterns = {
             "generate_function": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
-            "fix_bug": 
-            """Fix this {language} code bug:
-```{language}
-{code}
- Issue: {issue}
- Additional Rules:
- {rules} 
- """
-            "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Provide the fixed code with comments explaining the changes.",
+           
+            "fix_bug": "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Additional rules: {rules}. Provide the fixed code with comments explaining the changes.",
+            "improve_code": "Improve this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Additional rules: {rules}. Provide the improved code with comments explaining the changes.",
             "explain_code": "Explain how this {language} code works: ```{language}\n{code}\n```. Provide a clear explanation of what the code does, how it works, and any important details.",
             "refactor_code": "Refactor this {language} code for better readability and performance: ```{language}\n{code}\n```. Provide the refactored code with comments explaining the improvements.",
             "write_tests": "Write comprehensive unit tests for this {language} function: ```{language}\n{code}\n```. Include test cases for edge cases and normal scenarios.",

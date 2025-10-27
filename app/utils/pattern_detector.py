@@ -3,6 +3,15 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
+# State constants
+STATE_START = 0
+STATE_IN_PATTERN = 1
+STATE_IN_TASK = 2
+STATE_IN_LANGUAGE = 3
+STATE_IN_ISSUE = 4
+STATE_IN_RULES = 5
+STATE_IN_CODE = 6
+
 class PatternDetector:
     def __init__(self):
         self.supported_languages = [
@@ -61,7 +70,15 @@ class PatternDetector:
                 'code': code,
                 'issue': self._extract_issue_description(message)
             }
-        
+        elif 'improve_code' in message_lower:
+            code = self._extract_code_blocks(message)
+            return {
+                'pattern': 'improve_code',
+                'language': self._extract_language(message),
+                'code': code,
+                'issue': self._extract_issue_description(message)
+            }
+         
         elif 'explain_code' in message_lower:
             code = self._extract_code_blocks(message)
             return {
@@ -80,171 +97,200 @@ class PatternDetector:
         
         # For custom prompts that don't match any pattern
         return None
-            
+
     def _parse_structured_format(self, message):
         """Parse structured ###Key: value format with code blocks using state machine"""
         lines = message.split('\n')
         
-        # State machine states
-        STATE_START = 0
-        STATE_IN_PATTERN = 1
-        STATE_IN_TASK = 2
-        STATE_IN_LANGUAGE = 3
-        STATE_IN_ISSUE = 4
-        STATE_IN_RULES = 5
-        STATE_IN_CODE = 6
-        STATE_IN_EXPLANATION = 7  # New state for explanations after code
+        # Parse using state machine
+        result = self._parse_with_state_machine(lines)
         
+        # Process and validate results
+        return self._process_parsed_results(result)
+
+    def _parse_with_state_machine(self, lines):
+        """State machine implementation for parsing structured format"""
         current_state = STATE_START
         
-        # Results
-        pattern = None
-        task = ""
-        language = ""
-        issue = ""
-        rules = []
-        code_lines = []
-        explanation_lines = []  # New: for text after code blocks
+        # Results storage
+        result = {
+            'pattern': None,
+            'task': "",
+            'language': "",
+            'issue': "",
+            'rules': [],
+            'code_lines': []
+        }
         
-        for line in lines:
-            stripped_line = line.strip()
-            
-            # Check for state transitions (### markers)
-            if stripped_line.startswith('###'):
-                # Extract key from ### Key: format
-                key_match = re.match(r'###\s*(\w+):?\s*(.*)', stripped_line, re.IGNORECASE)
-                if key_match:
-                    key_name = key_match.group(1).lower()
-                    value_part = key_match.group(2).strip()
-                    
-                    # Any ### marker resets from explanation state
-                    if current_state == STATE_IN_EXPLANATION:
-                        current_state = STATE_START
-                    
-                    # Transition to new state based on key
-                    if key_name == 'pattern':
-                        current_state = STATE_IN_PATTERN
-                        pattern = value_part
-                    elif key_name == 'task':
-                        current_state = STATE_IN_TASK
-                        if value_part:
-                            task = value_part
-                    elif key_name == 'language':
-                        current_state = STATE_IN_LANGUAGE
-                        if value_part:
-                            language = value_part
-                    elif key_name == 'issue':
-                        current_state = STATE_IN_ISSUE
-                        if value_part:
-                            issue = value_part
-                    elif key_name == 'rules':
-                        current_state = STATE_IN_RULES
-                        if value_part:
-                            rules.append(value_part)
-                    elif key_name == 'code':
-                        current_state = STATE_IN_CODE
-                    else:
-                        # Unknown key, stay in current state
-                        continue
-                else:
-                    # Malformed ### line, ignore
-                    continue
-                    
-            # Check for code block markers ```
-            elif stripped_line.startswith('```'):
-                if current_state == STATE_IN_CODE:
-                    # Ending code block - transition to explanation state
-                    current_state = STATE_IN_EXPLANATION
-                else:
-                    # Starting code block
-                    current_state = STATE_IN_CODE
-                    # Extract language from ```language if present
-                    lang_match = re.match(r'```(\w+)', stripped_line)
-                    if lang_match and not language:
-                        potential_lang = lang_match.group(1).lower()
-                        if potential_lang in self.supported_languages:
-                            language = potential_lang.capitalize() if potential_lang != 'c#' else 'C#'
-            
-            # Process content based on current state
+        for i, line in enumerate(lines):
+            current_state, should_continue = self._process_line(
+                line, i, lines, current_state, result
+            )
+            if not should_continue:
+                break
+        
+        return result
+
+    def _process_line(self, line, line_index, all_lines, current_state, result):
+        """Process a single line in the state machine"""
+        stripped_line = line.strip()
+        
+        # Check for state transitions
+        if stripped_line.startswith('###'):
+            return self._handle_header_line(stripped_line, line_index, all_lines, current_state, result)
+        elif stripped_line.startswith('```'):
+            return self._handle_code_block_marker(stripped_line, current_state, result)
+        else:
+            return self._handle_content_line(stripped_line, line, current_state, result)
+
+    def _handle_header_line(self, stripped_line, line_index, all_lines, current_state, result):
+        """Handle ### header lines and transition states"""
+        # If we're in CODE state and encounter any ### marker, end the code block
+        if current_state == STATE_IN_CODE:
+            current_state = STATE_START
+        
+        # Extract key and value from header
+        key_name, value_part = self._extract_header_key_value(stripped_line)
+        
+        if not key_name:
+            return current_state, True  # Continue processing
+        
+        # Handle different header types
+        if key_name == 'pattern':
+            current_state = STATE_IN_PATTERN
+            result['pattern'] = value_part or self._get_value_from_next_line(line_index, all_lines)
+        elif key_name == 'task':
+            current_state = STATE_IN_TASK
+            if value_part:
+                result['task'] = value_part
             else:
-                if current_state == STATE_IN_PATTERN and not pattern:
-                    pattern = stripped_line
-                elif current_state == STATE_IN_TASK:
-                    if task and stripped_line:
-                        task += '\n' + stripped_line
-                    elif stripped_line:
-                        task = stripped_line
-                elif current_state == STATE_IN_LANGUAGE and not language:
-                    language = stripped_line
-                elif current_state == STATE_IN_ISSUE:
-                    if issue and stripped_line:
-                        issue += '\n' + stripped_line
-                    elif stripped_line:
-                        issue = stripped_line
-                elif current_state == STATE_IN_RULES:
-                    if stripped_line:
-                        rules.append(stripped_line)
-                elif current_state == STATE_IN_CODE:
-                    code_lines.append(line)  # Keep original line (with indentation)
-                elif current_state == STATE_IN_EXPLANATION:
-                    # Collect explanation text after code blocks
-                    if stripped_line:  # Only non-empty lines
-                        explanation_lines.append(stripped_line)
+                result['task'] = self._get_value_from_next_line(line_index, all_lines) or ""
+        elif key_name == 'language':
+            current_state = STATE_IN_LANGUAGE
+            if value_part:
+                result['language'] = value_part
+            else:
+                result['language'] = self._get_value_from_next_line(line_index, all_lines) or ""
+        elif key_name == 'issue':
+            current_state = STATE_IN_ISSUE
+            if value_part:
+                result['issue'] = value_part
+            else:
+                result['issue'] = self._get_value_from_next_line(line_index, all_lines) or ""
+        elif key_name == 'rules':
+            current_state = STATE_IN_RULES
+            if value_part:
+                result['rules'].append(value_part)
+            else:
+                next_line_value = self._get_value_from_next_line(line_index, all_lines)
+                if next_line_value:
+                    result['rules'].append(next_line_value)
+        elif key_name == 'code':
+            current_state = STATE_IN_CODE
         
-        # Process results
-        if pattern:
-            pattern = pattern.strip().lower()
-            
-            # Map pattern names to internal patterns
-            pattern_map = {
-                'fix_bug': 'fix_bug',
-                'write_code': 'generate_function', 
-                'refactor_code': 'refactor_code',
-                'write_test': 'write_tests',
-                'explain_code': 'explain_code',
-                'add_docs': 'add_docs',
-                'custom': 'custom'
-            }
-            
-            internal_pattern = pattern_map.get(pattern)
-            if internal_pattern:
-                # Use code collected by state machine, fallback to extract_code_blocks
-                code = '\n'.join(code_lines).strip()
-                if not code:
-                    code = self._extract_code_blocks(message)
-                
-                # Combine explanation lines
-                explanation = '\n'.join(explanation_lines).strip()
-                
-                # If no language specified but we detected from code block, use it
-                if not language:
-                    language_from_code = self._extract_language(message)
-                    if language_from_code != 'Python':  # Only use if not default
-                        language = language_from_code
-                
-                # Debug logging
-                logger.info(f"Pattern detected: {internal_pattern}")
-                logger.info(f"Language: {language}")
-                logger.info(f"Code length: {len(code)}")
-                logger.info(f"Explanation: {explanation}")
-                logger.info(f"Issue: {issue}")
-                logger.info(f"Rules: {'; '.join(rules)}")
-                
-                return {
-                    'pattern': internal_pattern,
-                    'task': task.strip(),
-                    'issue': issue.strip(),
-                    'rules': '; '.join(rules).strip(),
-                    'code': code,
-                    'explanation': explanation,  # New field
-                    'language': language.strip() or 'Python'
-                }
+        return current_state, True
+
+    def _handle_code_block_marker(self, stripped_line, current_state, result):
+        """Handle ``` code block markers"""
+        if current_state == STATE_IN_CODE:
+            # Ending code block with ```
+            return STATE_START, True
+        else:
+            # Starting code block with ```
+            current_state = STATE_IN_CODE
+            # Extract language from code block if not already set
+            if not result['language']:
+                lang_match = re.match(r'```(\w+)', stripped_line)
+                if lang_match:
+                    potential_lang = lang_match.group(1).lower()
+                    if potential_lang in self.supported_languages:
+                        result['language'] = potential_lang.capitalize() if potential_lang != 'c#' else 'C#'
+            return current_state, True
+
+    def _handle_content_line(self, stripped_line, original_line, current_state, result):
+        """Handle regular content lines based on current state"""
+        if current_state == STATE_IN_PATTERN and not result['pattern']:
+            result['pattern'] = stripped_line
+        elif current_state == STATE_IN_TASK:
+            result['task'] = self._append_to_field(result['task'], stripped_line)
+        elif current_state == STATE_IN_LANGUAGE and not result['language']:
+            result['language'] = stripped_line
+        elif current_state == STATE_IN_ISSUE:
+            result['issue'] = self._append_to_field(result['issue'], stripped_line)
+        elif current_state == STATE_IN_RULES:
+            if stripped_line:
+                result['rules'].append(stripped_line)
+        elif current_state == STATE_IN_CODE:
+            result['code_lines'].append(original_line)  # Keep original line
         
+        return current_state, True
+
+    def _extract_header_key_value(self, stripped_line):
+        """Extract key and value from ### header line"""
+        key_match = re.match(r'###\s*(\w+):?\s*(.*)', stripped_line, re.IGNORECASE)
+        if key_match:
+            return key_match.group(1).lower(), key_match.group(2).strip()
+        return None, None
+
+    def _get_value_from_next_line(self, current_index, all_lines):
+        """Get value from next line if it's not another header or code block"""
+        if current_index + 1 < len(all_lines):
+            next_line = all_lines[current_index + 1].strip()
+            if not next_line.startswith('###') and not next_line.startswith('```'):
+                return next_line
         return None
 
+    def _append_to_field(self, field, new_content):
+        """Append new content to a field with proper newline handling"""
+        if field and new_content:
+            return field + '\n' + new_content
+        elif new_content:
+            return new_content
+        else:
+            return field
 
+    def _process_parsed_results(self, result):
+        """Process and validate the parsed results"""
+        pattern = result['pattern']
+        if not pattern:
+            return None
         
-
+        pattern = pattern.strip().lower()
+        
+        # Map pattern names to internal patterns
+        pattern_map = {
+            'fix_bug': 'fix_bug',
+            'bug_fix': 'fix_bug',
+            'improve_code': 'improve_code',
+            'write_code': 'generate_function', 
+            'refactor_code': 'refactor_code',
+            'write_test': 'write_tests',
+            'explain_code': 'explain_code',
+            'add_docs': 'add_docs',
+            'custom': 'custom'
+        }
+        
+        internal_pattern = pattern_map.get(pattern)
+        if not internal_pattern:
+            return None
+        
+        # Prepare final result
+        code = '\n'.join(result['code_lines']).strip()
+        
+        # If no language specified but we detected from code block, use it
+        if not result['language']:
+            language_from_code = self._extract_language('\n'.join(result['code_lines']))
+            if language_from_code != 'Python':  # Only use if not default
+                result['language'] = language_from_code
+        
+        return {
+            'pattern': internal_pattern,
+            'task': result['task'].strip(),
+            'issue': result['issue'].strip(),
+            'rules': '; '.join(result['rules']).strip(),
+            'code': code,
+            'language': result['language'].strip() or 'Python'
+        }
 
     def _extract_task_after_pattern(self, message, pattern):
         """Extract the task description after the specific pattern name"""
@@ -267,41 +313,26 @@ class PatternDetector:
             return content_after_pattern
         return message
 
+
     def _extract_issue_description(self, message):
-        """Extract issue description after fix_bug pattern"""
+        """Extract issue description after fix_bug or improve_code pattern"""
         message_lower = message.lower()
-        if 'fix_bug' in message_lower:
-            # Get everything after fix_bug
-            content = message[message_lower.find('fix_bug') + len('fix_bug'):].strip()
-            content = content.lstrip(':').strip()
-            
-            # If there's code, extract the issue part before the code
-            code = self._extract_code_blocks(content)
-            if code:
-                return content.replace(f"```{code}```", "").strip()
-            return content
-        elif 'fix this' in message_lower:
-            # Handle "Fix this [language] code:" format
-            # Look for "### Issue:" pattern first
-            issue_start = message.find("### Issue:")
-            if issue_start != -1:
-                issue_content = message[issue_start + len("### Issue:"):].strip()
-                # Extract issue description before ### Rules: or ```
-                issue_match = re.search(r'^(.+?)(?=\n### Rules:|\n```|$)', issue_content, re.DOTALL)
-                if issue_match:
-                    return issue_match.group(1).strip()
-                return issue_content
-            
-            # Fallback to "The issue is:" pattern
-            issue_start = message.find("The issue is:")
-            if issue_start != -1:
-                issue_content = message[issue_start + len("The issue is:"):].strip()
-                # Extract issue description before any code blocks
-                issue_match = re.search(r'^(.+?)(?=\n###|\n```|$)', issue_content, re.DOTALL)
-                if issue_match:
-                    return issue_match.group(1).strip()
-                return issue_content
-            return "Unknown issue"
+        
+        # Handle both fix_bug and improve_code patterns
+        patterns_to_check = ['fix_bug', 'improve_code']
+        
+        for pattern in patterns_to_check:
+            if pattern in message_lower:
+                # Get everything after the pattern
+                content = message[message_lower.find(pattern) + len(pattern):].strip()
+                content = content.lstrip(':').strip()
+                
+                # If there's code, extract the issue part before the code
+                code = self._extract_code_blocks(content)
+                if code:
+                    return content.replace(f"```{code}```", "").strip()
+                return content
+        
         return "Unknown issue"
 
     def _extract_language(self, message):
@@ -320,37 +351,81 @@ class PatternDetector:
                 return lang.capitalize() if lang != 'c#' else 'C#'
         return 'Python'  # default
 
-
     def _extract_code_blocks(self, message):
-        """Extract code from markdown code blocks using state machine approach"""
+        """Extract code from markdown code blocks or from '### Code' headers.
+
+        Behavior:
+        - First, try to find fenced ```code``` blocks (existing behavior).
+        - If none found, look for '### Code' headers and collect following lines
+          (skip the header line, allow one or more blank lines before actual code).
+        - Return the first non-empty code block found, else return empty string.
+        """
         lines = message.split('\n')
+
+        # 1) Try fenced code blocks first (preserve original formatting)
         in_code_block = False
         code_lines = []
         code_blocks = []
-        
+
         for line in lines:
             stripped = line.strip()
-            
+
             if stripped.startswith('```'):
                 if in_code_block:
-                    # End of code block
+                    # End of fenced code block
                     if code_lines:
                         code_blocks.append('\n'.join(code_lines))
                     code_lines = []
                     in_code_block = False
                 else:
-                    # Start of code block
+                    # Start of fenced code block
                     in_code_block = True
             elif in_code_block:
                 code_lines.append(line)  # Keep original formatting
-        
-        # Return the first non-empty code block, or all code joined
+
+        # Return first non-empty fenced block if present
         for block in code_blocks:
             if block.strip():
                 return block.strip()
-        
-        return ''
 
+        # 2) No fenced blocks found — look for '### Code' style headers
+        header_pattern = re.compile(r'###\s*code\b', re.IGNORECASE)
+        n = len(lines)
+        i = 0
+        while i < n:
+            if header_pattern.match(lines[i].strip()):
+                # Collect lines after this header until next '###' header or end
+                i += 1  # move to the line after the header
+                # collect lines (preserve formatting), but skip leading blank lines
+                collected = []
+                # skip initial blank lines but allow blank lines once code has started
+                code_started = False
+                while i < n:
+                    stripped = lines[i].strip()
+                    if stripped.startswith('###'):
+                        break  # next header starts, end this code block
+                    # If the line is not empty, mark code_started
+                    if stripped != '':
+                        code_started = True
+                        collected.append(lines[i])
+                    else:
+                        # only append blank lines if we've already started capturing code
+                        if code_started:
+                            collected.append(lines[i])
+                        else:
+                            # skip leading blank lines
+                            pass
+                    i += 1
+
+                block = '\n'.join(collected).strip()
+                if block:
+                    return block  # return first non-empty code block found
+                # otherwise continue searching for the next '### Code'
+            else:
+                i += 1
+
+        # Nothing found
+        return ''
 
     def get_supported_languages(self):
         """Get list of supported programming languages"""
