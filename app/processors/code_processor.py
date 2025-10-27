@@ -8,6 +8,7 @@ from flask import jsonify, Response
 from app.utils.pattern_detector import PatternDetector
 from app.utils.ai_provider import AIProviderFactory
 from app.config import load_config
+from app.processors.latin_processor import LatinProcessor
 logger = logging.getLogger(__name__)
 
 class CodeProcessor:
@@ -17,19 +18,26 @@ class CodeProcessor:
         self.pattern_detector = PatternDetector()
         self.ai_provider = AIProviderFactory.create_provider(self.config)
         self.default_model = self.config["DEFAULT_MODEL"]
-        
-        # Define prompt templates for different code generation patterns
+        self.latin_processor = LatinProcessor(self.ai_provider)
+
         self.prompt_patterns = {
-            "generate_function": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
-           
-            "fix_bug": "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Additional rules: {rules}. Provide the fixed code with comments explaining the changes.",
-            "improve_code": "Improve this {language} code: ```{language}\n{code}\n```. The issue is: {issue}. Additional rules: {rules}. Provide the improved code with comments explaining the changes.",
+            "write_code": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
+            
+            "fix_bug": "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}.{rules_section}Provide the fixed code with comments explaining the changes.",
+            
+            "improve_code": "Improve this {language} code: ```{language}\n{code}\n```. The issue is: {issue}.{rules_section}Provide the improved code with comments explaining the changes.",
+            
             "explain_code": "Explain how this {language} code works: ```{language}\n{code}\n```. Provide a clear explanation of what the code does, how it works, and any important details.",
+            
             "refactor_code": "Refactor this {language} code for better readability and performance: ```{language}\n{code}\n```. Provide the refactored code with comments explaining the improvements.",
+            
             "write_tests": "Write comprehensive unit tests for this {language} function: ```{language}\n{code}\n```. Include test cases for edge cases and normal scenarios.",
+            
             "add_docs": "Add detailed docstring and comments to this {language} code: ```{language}\n{code}\n```. Provide the documented code with clear explanations.",
+            
             "custom": "{prompt}"
-        }
+        } 
+
 
     def generate_code(self, data):
         """
@@ -193,7 +201,7 @@ class CodeProcessor:
             return jsonify({"error": "Language is required"}), 400
             
         # Pattern-specific validations
-        if pattern == "generate_function":
+        if pattern == "write_code":
             if not task:
                 return jsonify({"error": "Task description is required"}), 400
                 
@@ -266,13 +274,14 @@ class CodeProcessor:
                 task = pattern_data.get('task', '')
                 issue = pattern_data.get('issue', '')
                 rules = pattern_data.get('rules', '')  # Add rules extraction
-            
+                rules_section = f" Additional rules: {rules}." if rules else ""
+
                 filled_prompt = self.prompt_patterns[pattern_data['pattern']].format(
                     language=language,
                     code=code,
                     task=task,
                     issue=issue,
-                    rules=rules  # Add rules parameter
+                    rules_section=rules_section  # Add rules parameter
                 )
 
             # DEBUG: Log the final prompt being sent to AI
@@ -398,7 +407,7 @@ class CodeProcessor:
                 "description": self._get_pattern_description(pattern_name),
                 "requires_language": pattern_name != "custom",
                 "requires_code": pattern_name in ["fix_bug", "explain_code", "refactor_code", "write_tests", "add_docs"],
-                "requires_task": pattern_name == "generate_function",
+                "requires_task": pattern_name == "write_code",
                 "requires_prompt": pattern_name == "custom"
             }
         return patterns_info
@@ -414,7 +423,7 @@ class CodeProcessor:
             str: Pattern description
         """
         descriptions = {
-            "generate_function": "Generate a function with type hints and documentation",
+            "write_code": "Generate a function with type hints and documentation",
             "fix_bug": "Fix bugs in provided code with explanation",
             "explain_code": "Explain how code works in detail",
             "refactor_code": "Refactor code for better readability and performance",

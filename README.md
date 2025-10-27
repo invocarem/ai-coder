@@ -21,27 +21,27 @@ A Flask-based AI code generation service that provides intelligent code assistan
 
 ## Installation
 
-1. **Clone the repository**:
+### **Clone the repository**
 
 ```bash
 git clone <repository-url>
 cd ai-coder
 ```
 
-2. **Create a virtual environment**:
+### **Create a virtual environment**
 
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. **Install dependencies**:
+### **Install dependencies**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Set up environment variables** (create a `.env` file):
+#### **Set up environment variables** (create a `.env` file)
 
 ```bash
 # AI Provider Configuration
@@ -322,7 +322,7 @@ curl -X POST http://127.0.0.1:5000/api/generate_code \
 
 ## Testing
 
-### First Test:
+### First Test
 
 ```bash
 curl -X POST http://127.0.0.1:5000/api/generate_code \

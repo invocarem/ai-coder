@@ -8,6 +8,45 @@ api_bp = Blueprint('api', __name__)
 # Initialize code processor
 code_processor = CodeProcessor()
 
+
+@api_bp.route('/api/analyze_latin', methods=['POST'])
+def analyze_latin():
+    """
+    Analyze Latin words and grammar
+    Expected JSON payload:
+    {
+        "word": "egredior",
+        "analysis_type": "conjugate|decline|translate|comprehensive",
+        "context": "biblical|classical|general"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        word = data.get('word', '')
+        if not word:
+            return jsonify({"error": "Latin word is required"}), 400
+        
+        # Create pattern data for processor
+        pattern_data = {
+            'pattern': 'latin_analysis',
+            'latin_word': word,
+            'analysis_type': data.get('analysis_type', 'comprehensive'),
+            'context': data.get('context', 'general')
+        }
+        
+        return code_processor._handle_pattern_request(
+            pattern_data, 
+            code_processor.default_model, 
+            False, 
+            data
+        )
+        
+    except Exception as e:
+        return jsonify({"error": f"Latin analysis failed: {str(e)}"}), 500
 @api_bp.route('/api/generate_code', methods=['POST'])
 def generate_code():
     """

@@ -36,7 +36,7 @@ class TestCodeProcessor:
         assert processor.default_model == "test-model"
         assert processor.pattern_detector is not None
         assert processor.ai_provider is not None
-        assert "generate_function" in processor.prompt_patterns
+        assert "write_code" in processor.prompt_patterns
         assert "fix_bug" in processor.prompt_patterns
         assert "custom" in processor.prompt_patterns
 
@@ -49,7 +49,7 @@ class TestCodeProcessor:
         processor.ai_provider.generate_openai_compatible.return_value = mock_response
         
         data = {
-            "pattern": "generate_function",
+            "pattern": "write_code",
             "language": "Python",
             "task": "test task",
             "model": "test-model"
@@ -84,9 +84,9 @@ class TestCodeProcessor:
 
     def test_generate_code_validation_error(self, processor, app):
         """Test validation errors in code generation"""
-        # Test missing language for generate_function pattern
+        # Test missing language for write_code pattern
         data = {
-            "pattern": "generate_function",
+            "pattern": "write_code",
             "task": "test task"
             # Missing language
         }
@@ -111,7 +111,7 @@ class TestCodeProcessor:
     def test_generate_code_missing_task(self, processor, app):
         """Test missing task for generate_function pattern"""
         data = {
-            "pattern": "generate_function",
+            "pattern": "write_code",
             "language": "Python"
             # Missing task
         }
@@ -333,11 +333,11 @@ class TestCodeProcessor:
         """Test getting supported patterns"""
         patterns_info = processor.get_supported_patterns()
         
-        assert "generate_function" in patterns_info
+        assert "write_code" in patterns_info
         assert "fix_bug" in patterns_info
         assert "custom" in patterns_info
         
-        generate_func_info = patterns_info["generate_function"]
+        generate_func_info = patterns_info["write_code"]
         assert generate_func_info["requires_language"] == True
         assert generate_func_info["requires_code"] == False
         assert generate_func_info["requires_task"] == True
@@ -352,7 +352,7 @@ class TestCodeProcessor:
         
         requests_data = [
             {
-                "pattern": "generate_function",
+                "pattern": "write_code",
                 "language": "Python",
                 "task": "Task 1"
             },
@@ -474,7 +474,7 @@ class TestCodeProcessor:
     def test_handle_pattern_request_success(self, processor, app):
         """Test handling pattern request successfully"""
         pattern_data = {
-            "pattern": "generate_function",
+            "pattern": "write_code",
             "language": "Python",
             "task": "test task"
         }
@@ -512,7 +512,7 @@ class TestCodeProcessor:
     def test_prompt_templates_formatting(self, processor):
         """Test that prompt templates are correctly formatted"""
         # Test generate_function template
-        template = processor.prompt_patterns["generate_function"]
+        template = processor.prompt_patterns["write_code"]
         formatted = template.format(
             language="Python",
             code="",
@@ -532,7 +532,8 @@ class TestCodeProcessor:
             language="Python",
             code=code,
             task="",
-            issue="undefined variable"
+            issue="undefined variable",
+            rules_section=""
         )
         
         assert "Python" in formatted

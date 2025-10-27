@@ -41,7 +41,7 @@ class PatternDetector:
             language = self._extract_language(message)
             task = self._extract_task_after_pattern(message, 'write_code')
             return {
-                'pattern': 'generate_function',
+                'pattern': 'write_code',
                 'language': language,
                 'task': task
             }
@@ -262,7 +262,7 @@ class PatternDetector:
             'fix_bug': 'fix_bug',
             'bug_fix': 'fix_bug',
             'improve_code': 'improve_code',
-            'write_code': 'generate_function', 
+            'write_code': 'write_code', 
             'refactor_code': 'refactor_code',
             'write_test': 'write_tests',
             'explain_code': 'explain_code',
@@ -441,3 +441,118 @@ class PatternDetector:
             'explain_code',
             'add_docs'
         ]
+
+
+        # In pattern_detector.py - add the new patterns
+    def detect_latin_pattern(self, message):
+        """Detect various types of Latin analysis requests"""
+        message_lower = message.lower()
+        
+        # Check for specific word analysis
+        latin_word = self._extract_target_latin_word(message)
+        if latin_word:
+            return {
+                'pattern': 'latin_analysis',
+                'word_form': latin_word,
+                'context': self._extract_context(message),
+                'sentence': self._extract_sentence_context(message)
+            }
+        
+        # Check for verse lemma analysis
+        if any(phrase in message_lower for phrase in ['lemmas for', 'lemma of', 'analyze verse', 'word by word']):
+            verse = self._extract_latin_verse(message)
+            if verse:
+                return {
+                    'pattern': 'verse_lemmas', 
+                    'verse': verse,
+                    'translation': self._extract_translation(message)
+                }
+        
+        return None
+
+    def _detect_patristic_pattern(self, message):
+        """Detect requests for Church Father expositions"""
+        message_lower = message.lower()
+        
+        patristic_indicators = [
+            'augustine', 'church father', 'patristic', 'exposition',
+            'commentary', 'homily', 'sermon', 'treatise'
+        ]
+        
+        biblical_indicators = [
+            'psalm', 'gospel', 'epistle', 'verse', 'scripture'
+        ]
+        
+        if any(indicator in message_lower for indicator in patristic_indicators):
+            if any(indicator in message_lower for indicator in biblical_indicators):
+                return {
+                    'pattern': 'patristic_exposition',
+                    'passage': self._extract_bible_reference(message),
+                    'church_father': self._extract_church_father(message),
+                    'translation': self._extract_translation(message)
+                }
+        
+        return None
+
+    def _extract_target_latin_word(self, message):
+        """Extract the specific Latin word to analyze"""
+        # Look for quoted Latin words
+        quoted_match = re.search(r'[\'"`](\w+)[\'"`]', message)
+        if quoted_match:
+            return quoted_match.group(1)
+        
+        # Look for "word X" or "analyze X" patterns
+        analyze_match = re.search(r'(?:word|analyze|parse)\s+(\w+)', message, re.IGNORECASE)
+        if analyze_match:
+            return analyze_match.group(1)
+        
+        # Look for obvious Latin words in context
+        words = message.split()
+        for word in words:
+            clean_word = re.sub(r'[^\w]', '', word)
+            if self._looks_latin(clean_word):
+                return clean_word
+        
+        return None
+
+    def _extract_latin_verse(self, message):
+        """Extract Latin verse text"""
+        # Look for quoted Latin text
+        quoted_match = re.search(r'[\'"`]([^\'"`]+)[\'"`]', message)
+        if quoted_match:
+            text = quoted_match.group(1)
+            if any(word in text.lower() for word in ['qui', 'et', 'non', 'in', 'est']):
+                return text
+        
+        return None
+
+    def _extract_church_father(self, message):
+        """Extract which Church Father is requested"""
+        message_lower = message.lower()
+        
+        if 'augustine' in message_lower:
+            return 'Augustine'
+        elif 'ambrose' in message_lower:
+            return 'Ambrose'
+        elif 'jerome' in message_lower:
+            return 'Jerome'
+        elif 'gregory' in message_lower:
+            return 'Gregory the Great'
+        elif 'john chrysostom' in message_lower:
+            return 'John Chrysostom'
+        else:
+            return 'Augustine'  # default
+
+    def _looks_latin(self, word):
+        """Heuristic to check if a word looks Latin"""
+        if len(word) < 3:
+            return False
+        
+        latin_indicators = [
+            word.endswith(('us', 'um', 'a', 'ae', 'i', 'o', 'is', 'it', 'nt', 'tur', 'mur')),
+            'ae' in word,
+            'ii' in word,
+            'x' in word  # Common in Latin
+        ]
+        
+        return any(latin_indicators)

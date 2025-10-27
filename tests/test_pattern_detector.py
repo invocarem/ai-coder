@@ -76,7 +76,7 @@ Some additional text here."""
         result = detector.detect_pattern(message)
         
         assert result is not None
-        assert result['pattern'] == 'generate_function'
+        assert result['pattern'] == 'write_code'
         assert result['language'].lower() == 'awk'
         assert 'write code to add two numbers' in result['task']
 
@@ -191,7 +191,7 @@ Some additional text here."""
         result = detector._parse_structured_format(message)
         
         assert result is not None
-        assert result['pattern'] == 'generate_function'
+        assert result['pattern'] == 'write_code'
         assert result['task'] == 'create a function'
         assert result['language'].lower() == 'javascript'
         assert result['code'] == ''
@@ -365,7 +365,7 @@ Some additional text here."""
         result = detector._parse_structured_format(message)
 
         assert result is not None
-        assert result['pattern'] == 'generate_function'
+        assert result['pattern'] == 'write_code'
         assert result['language'] == 'javascript'
         assert 'function hello()' in result['code']
         assert 'Some explanation here.' not in result['code']
