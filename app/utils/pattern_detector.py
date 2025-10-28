@@ -11,6 +11,7 @@ STATE_IN_LANGUAGE = 3
 STATE_IN_ISSUE = 4
 STATE_IN_RULES = 5
 STATE_IN_CODE = 6
+STATE_IN_LATIN = 7
 
 class PatternDetector:
     def __init__(self):
@@ -222,7 +223,8 @@ class PatternDetector:
                 result['rules'].append(stripped_line)
         elif current_state == STATE_IN_CODE:
             result['code_lines'].append(original_line)  # Keep original line
-        
+        elif current_state == STATE_IN_LATIN:
+            result['word_form'] = self._append_to_field(result.get('word_form', ''), stripped_line)
         return current_state, True
 
     def _extract_header_key_value(self, stripped_line):

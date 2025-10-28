@@ -265,6 +265,10 @@ class CodeProcessor:
             Flask Response: Processed response
         """
         try:
+            if pattern_data['pattern'] in ['latin_analysis']:
+                return self.latin_processor.process(pattern_data, model, stream, original_data)
+        
+
             if pattern_data['pattern'] == 'custom':
                 filled_prompt = pattern_data.get('prompt', '')
             else:
