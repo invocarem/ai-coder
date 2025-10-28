@@ -24,6 +24,7 @@ Please provide a COMPLETE morphological analysis following this EXACT structure:
 **MEANING:** [primary English translation]
 
 **GRAMMATICAL ANALYSIS:**
+- **Lemma:** [prsent for verb, nominative singular for noun/adjective]
 - **Case:** [nominative/genitive/dative/accusative/ablative/vocative/locative - if applicable]
 - **Number:** [singular/plural - if applicable]  
 - **Gender:** [masculine/feminine/neuter - if applicable]

@@ -11,7 +11,7 @@ STATE_IN_LANGUAGE = 3
 STATE_IN_ISSUE = 4
 STATE_IN_RULES = 5
 STATE_IN_CODE = 6
-STATE_IN_LATIN = 7
+STATE_IN_WORD = 7  # for Latin word forms and similar single word inputs
 
 class PatternDetector:
     def __init__(self):
@@ -63,7 +63,7 @@ class PatternDetector:
                 'code': code
             }
         
-        elif 'fix_bug' in message_lower or 'fix this' in message_lower:
+        elif 'fix_bug' in message_lower in message_lower:
             code = self._extract_code_blocks(message)
             return {
                 'pattern': 'fix_bug',
@@ -188,7 +188,12 @@ class PatternDetector:
                     result['rules'].append(next_line_value)
         elif key_name == 'code':
             current_state = STATE_IN_CODE
-        
+        elif key_name in ['word', 'word_form']:  # Handle Latin word forms
+            current_state = STATE_IN_WORD
+            if value_part:
+                result['word_form'] = value_part
+            else:
+                result['word_form'] = self._get_value_from_next_line(line_index, all_lines) or ""
         return current_state, True
 
     def _handle_code_block_marker(self, stripped_line, current_state, result):
@@ -223,7 +228,7 @@ class PatternDetector:
                 result['rules'].append(stripped_line)
         elif current_state == STATE_IN_CODE:
             result['code_lines'].append(original_line)  # Keep original line
-        elif current_state == STATE_IN_LATIN:
+        elif current_state == STATE_IN_WORD:
             result['word_form'] = self._append_to_field(result.get('word_form', ''), stripped_line)
         return current_state, True
 
