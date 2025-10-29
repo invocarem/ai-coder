@@ -636,3 +636,14 @@ $ pytest tests/test_pattern_detector.py::TestPatternDetector::test_real_world_ex
 # Test all pattern detector tests
 pytest tests/test_pattern_detector.py -v
 ```
+
+```
+curl -X POST http://localhost:5000/api/query_psalm \
+  -H "Content-Type: application/json" \
+  -d '{
+    "psalm_number": 1,
+    "verse_number": 1,
+    "question": "How does Augustine interpret the three verbs?",
+    "model": "mistral:latest"
+  }'
+``` 

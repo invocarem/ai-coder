@@ -9,6 +9,8 @@ from app.utils.pattern_detector import PatternDetector
 from app.utils.ai_provider import AIProviderFactory
 from app.config import load_config
 from app.processors.latin_processor import LatinProcessor
+from app.processors.psalm_rag_processor import PsalmRAGProcessor
+
 logger = logging.getLogger(__name__)
 
 class CodeProcessor:
@@ -19,6 +21,7 @@ class CodeProcessor:
         self.ai_provider = AIProviderFactory.create_provider(self.config)
         self.default_model = self.config["DEFAULT_MODEL"]
         self.latin_processor = LatinProcessor(self.ai_provider)
+        self.psalm_rag_processor = PsalmRAGProcessor(self.ai_provider)
 
         self.prompt_patterns = {
             "write_code": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",

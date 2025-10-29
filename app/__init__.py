@@ -16,8 +16,10 @@ def create_app():
     # Register blueprints
     from .routes.api_routes import api_bp
     from .routes.openai_routes import openai_bp
+    from .routes.psalm_routes import psalm_bp
     
     app.register_blueprint(api_bp)
     app.register_blueprint(openai_bp)
+    app.register_blueprint(psalm_bp)
     
     return app

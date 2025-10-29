@@ -8,10 +8,13 @@ pytest>=7.0.0
 pytest-flask>=1.0.0
 
 # Cassandra database
-cassandra-driver>=3.25.0
+cassandra-driver>=3.28.0
+cqlsh==6.1.0
+
 
 # Text processing
 nltk>=3.8.0
 
 # Utilities
 python-json-logger>=2.0.0
+
