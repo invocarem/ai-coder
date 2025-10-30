@@ -182,7 +182,8 @@ ANSWER:
         except Exception as e:
             logger.error(f"Psalm RAG query failed: {str(e)}")
             return jsonify({"error": f"Psalm RAG query failed: {str(e)}"}), 500
-    
+
+                
     def _format_streaming_response(self, response, model):
         """Format streaming response"""
         def generate():
@@ -198,7 +199,8 @@ ANSWER:
                                 if 'choices' in data and data['choices']:
                                     content = data['choices'][0].get('delta', {}).get('content', '')
                                     if content:
-                                        yield f"data: {json.dumps({
+                                        # Fix: Use proper dictionary for multi-line
+                                        chunk_data = {
                                             'id': f'chatcmpl-{int(time.time())}',
                                             'object': 'chat.completion.chunk',
                                             'created': int(time.time()),
@@ -208,13 +210,14 @@ ANSWER:
                                                 'delta': {'content': content},
                                                 'finish_reason': None
                                             }]
-                                        })}\n\n"
+                                        }
+                                        yield f"data: {json.dumps(chunk_data)}\n\n"
                             else:
                                 # Handle other response formats
                                 data = json.loads(line)
                                 content = data.get('response', '')
                                 if content:
-                                    yield f"data: {json.dumps({
+                                    chunk_data = {
                                         'id': f'chatcmpl-{int(time.time())}',
                                         'object': 'chat.completion.chunk',
                                         'created': int(time.time()),
@@ -224,13 +227,14 @@ ANSWER:
                                             'delta': {'content': content},
                                             'finish_reason': None
                                         }]
-                                    })}\n\n"
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
                         except (json.JSONDecodeError, Exception) as e:
                             logger.debug(f"Error processing stream line: {e}")
                             continue
                 
-                # Send final done chunk
-                yield f"data: {json.dumps({
+                # Send final done chunk - FIX THIS PART
+                done_chunk = {
                     'id': f'chatcmpl-{int(time.time())}',
                     'object': 'chat.completion.chunk',
                     'created': int(time.time()),
@@ -240,14 +244,20 @@ ANSWER:
                         'delta': {},
                         'finish_reason': 'stop'
                     }]
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(done_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
                 
             except Exception as e:
                 logger.error(f"Streaming error: {e}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                error_chunk = {
+                    'error': str(e)
+                }
+                yield f"data: {json.dumps(error_chunk)}\n\n"
         
         return Response(generate(), mimetype='text/event-stream')
+    
+    
     
     def _format_response(self, response, model, context):
         """Format non-streaming response"""

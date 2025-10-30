@@ -124,7 +124,7 @@ Word to analyze: {word_form}
                             if 'choices' in data and data['choices']:
                                 content = data['choices'][0].get('delta', {}).get('content', '')
                                 if content:
-                                    yield f"data: {json.dumps({
+                                    chunk = {
                                         'id': f'chatcmpl-{int(time.time())}',
                                         'object': 'chat.completion.chunk',
                                         'created': int(time.time()),
@@ -134,12 +134,13 @@ Word to analyze: {word_form}
                                             'delta': {'content': content},
                                             'finish_reason': None
                                         }]
-                                    })}\n\n"
+                                    }
+                                    yield f"data: {json.dumps(chunk)}\n\n"
                         else:
                             data = json.loads(line)
                             content = data.get('response', '')
                             if content:
-                                yield f"data: {json.dumps({
+                                chunk = {
                                     'id': f'chatcmpl-{int(time.time())}',
                                     'object': 'chat.completion.chunk',
                                     'created': int(time.time()),
@@ -149,13 +150,15 @@ Word to analyze: {word_form}
                                         'delta': {'content': content},
                                         'finish_reason': None
                                     }]
-                                })}\n\n"
+                                }
+                                yield f"data: {json.dumps(chunk)}\n\n"
+
                     except (json.JSONDecodeError, Exception) as e:
                         logger.debug(f"Error processing stream line: {e}")
                         continue
             
             # Send final done chunk
-            yield f"data: {json.dumps({
+            final_chunk = {
                 'id': f'chatcmpl-{int(time.time())}',
                 'object': 'chat.completion.chunk',
                 'created': int(time.time()),
@@ -165,7 +168,9 @@ Word to analyze: {word_form}
                     'delta': {},
                     'finish_reason': 'stop'
                 }]
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(final_chunk)}\n\n"
+
             yield "data: [DONE]\n\n"
         
         return Response(generate(), mimetype='text/event-stream')

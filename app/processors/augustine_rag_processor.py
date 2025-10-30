@@ -3,7 +3,7 @@ import logging
 import json
 import time
 from flask import jsonify, Response
-from app.rag.cassandra_client import CassandraClient
+from app.rag.simple_cassandra_client import SimpleCassandraClient
 from app.rag.retriever import AugustineRetriever
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ class AugustineRAGProcessor:
     
     def __init__(self, ai_provider):
         self.ai_provider = ai_provider
-        self.cassandra_client = CassandraClient()
+        self.cassandra_client = SimpleCassandraClient()
         self.retriever = AugustineRetriever(self.cassandra_client)
         
         self.prompt_templates = {
@@ -73,12 +73,8 @@ ANSWER:
         if not psalm_number:
             return jsonify({"error": "psalm_number is required for augustine_psalm_query"}), 400
         
-        # Retrieve relevant context from Cassandra
-        context = self.retriever.retrieve_psalm_context(
-            psalm_number=psalm_number,
-            verse_number=verse_number,
-            question=question
-        )
+        # Build context from database using SimpleCassandraClient
+        context = self._build_augustine_context(psalm_number, verse_number)
         
         prompt = self.prompt_templates['augustine_psalms'].format(
             context=context,
@@ -97,12 +93,8 @@ ANSWER:
         if not all([word_form, psalm_number]):
             return jsonify({"error": "word_form and psalm_number are required for psalm_word_study"}), 400
         
-        # Retrieve word-specific context
-        context = self.retriever.retrieve_word_study(
-            word=word_form,
-            psalm_number=psalm_number,
-            verse_number=verse_number
-        )
+        # Build context using SimpleCassandraClient
+        context = self._build_augustine_context(psalm_number, verse_number, word_form)
         
         question = f"Augustine's interpretation of '{word_form}' in Psalm {psalm_number}" + \
                   (f":{verse_number}" if verse_number else "")
@@ -116,6 +108,46 @@ ANSWER:
         )
         
         return self._call_ai_provider(prompt, model, stream, original_data, context)
+    
+    def _build_augustine_context(self, psalm_number, verse_number=None, word_form=None):
+        """Build context from Cassandra database using SimpleCassandraClient"""
+        context_parts = []
+        
+        # Get Augustine commentaries
+        augustine_comments = self.cassandra_client.get_augustine_comments(psalm_number, verse_number)
+        
+        if augustine_comments:
+            context_parts.append("AUGUSTINE COMMENTARY:")
+            for comment in augustine_comments:
+                context_parts.append(f"Work: {comment.get('work_title', 'Unknown')}")
+                if verse_number:
+                    context_parts.append(f"Verses: {comment.get('verse_start', 'N/A')}-{comment.get('verse_end', 'N/A')}")
+                context_parts.append(f"Latin: {comment.get('latin_text', '')}")
+                context_parts.append(f"English: {comment.get('english_translation', '')}")
+                if comment.get('key_terms'):
+                    context_parts.append(f"Key Terms: {', '.join(comment.get('key_terms', []))}")
+                context_parts.append("---")
+        
+        # Get Psalm verses if available
+        if verse_number:
+            verse_result = self.cassandra_client.get_psalm_verse(psalm_number, verse_number)
+            if verse_result:
+                context_parts.append(f"PSALM {psalm_number}:{verse_number}")
+                context_parts.append(f"Latin: {verse_result.get('latin_text', '')}")
+                context_parts.append(f"English: {verse_result.get('english_translation', '')}")
+                if verse_result.get('grammatical_notes'):
+                    context_parts.append(f"Grammar: {verse_result.get('grammatical_notes', '')}")
+        
+        # Filter by word if specified
+        if word_form and context_parts:
+            word_context = []
+            for part in context_parts:
+                if word_form.lower() in part.lower():
+                    word_context.append(part)
+            if word_context:
+                return "\n".join(word_context)
+        
+        return "\n".join(context_parts) if context_parts else "No Augustine commentary found for the specified Psalm."
     
     def _call_ai_provider(self, prompt, model, stream, original_data, context=None):
         """Call AI provider with RAG context"""
@@ -149,13 +181,72 @@ ANSWER:
             return jsonify({"error": f"Augustine RAG failed: {str(e)}"}), 500
     
     def _format_streaming_response(self, response, model, context):
-        """Format streaming response (similar to your existing method)"""
-        # Use your existing streaming format from latin_processor.py
+        """Format streaming response using similar logic to psalm_rag_processor"""
         def generate():
-            for line in response:
-                # Your existing streaming logic here
-                yield line
-            # Your existing done signal
+            try:
+                for line in response:
+                    if line:
+                        try:
+                            if isinstance(line, bytes):
+                                line = line.decode('utf-8')
+                            
+                            if line.startswith('data: '):
+                                data = json.loads(line[6:])
+                                if 'choices' in data and data['choices']:
+                                    content = data['choices'][0].get('delta', {}).get('content', '')
+                                    if content:
+                                        chunk_data = {
+                                            'id': f'chatcmpl-{int(time.time())}',
+                                            'object': 'chat.completion.chunk',
+                                            'created': int(time.time()),
+                                            'model': model,
+                                            'choices': [{
+                                                'index': 0,
+                                                'delta': {'content': content},
+                                                'finish_reason': None
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                            else:
+                                # Handle other response formats
+                                data = json.loads(line)
+                                content = data.get('response', '')
+                                if content:
+                                    chunk_data = {
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                        except (json.JSONDecodeError, Exception) as e:
+                            logger.debug(f"Error processing stream line: {e}")
+                            continue
+                
+                # Send final done chunk
+                final_chunk = {
+                    'id': f'chatcmpl-{int(time.time())}',
+                    'object': 'chat.completion.chunk',
+                    'created': int(time.time()),
+                    'model': model,
+                    'choices': [{
+                        'index': 0,
+                        'delta': {},
+                        'finish_reason': 'stop'
+                    }]
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+                
+            except Exception as e:
+                logger.error(f"Streaming error: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        
         return Response(generate(), mimetype='text/event-stream')
     
     def _format_openai_response(self, response, model, context):
@@ -192,7 +283,8 @@ ANSWER:
             if context:
                 response_data["rag_metadata"] = {
                     "context_preview": context[:500] + "..." if len(context) > 500 else context,
-                    "sources_used": len(context.split('\n\n'))  # Approximate chunk count
+                    "sources_used": len(context.split('\n\n')),  # Approximate chunk count
+                    "source": "cassandra_augustine_commentaries"
                 }
             
             return jsonify(response_data)

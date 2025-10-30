@@ -31,6 +31,8 @@ class PatternDetector:
             dict or None: Pattern data if detected, None otherwise
         """
         # First check for structured format
+        logger.debug(f"Checking structured format for message: {message[:100]}...")
+
         structured_data = self._parse_structured_format(message)
         if structured_data:
             return structured_data

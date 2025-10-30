@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import os
+os.environ['CASS_DRIVER_NO_CYTHON'] = '1'
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.rag.simple_cassandra_client import SimpleCassandraClient

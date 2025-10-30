@@ -8,20 +8,16 @@ from flask import jsonify, Response
 from app.utils.pattern_detector import PatternDetector
 from app.utils.ai_provider import AIProviderFactory
 from app.config import load_config
-from app.processors.latin_processor import LatinProcessor
-from app.processors.psalm_rag_processor import PsalmRAGProcessor
 
 logger = logging.getLogger(__name__)
 
 class CodeProcessor:
-    def __init__(self):
+    def __init__(self, ai_provider):
         """Initialize the code processor with configuration and dependencies"""
         self.config = load_config()
         self.pattern_detector = PatternDetector()
-        self.ai_provider = AIProviderFactory.create_provider(self.config)
+        self.ai_provider = ai_provider
         self.default_model = self.config["DEFAULT_MODEL"]
-        self.latin_processor = LatinProcessor(self.ai_provider)
-        self.psalm_rag_processor = PsalmRAGProcessor(self.ai_provider)
 
         self.prompt_patterns = {
             "write_code": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
@@ -40,6 +36,17 @@ class CodeProcessor:
             
             "custom": "{prompt}"
         } 
+
+    def process(self, pattern_data, model, stream, original_data):
+        """
+        Process method for router compatibility
+        """
+        try:
+            # Use the existing pattern handling logic
+            return self._handle_pattern_request(pattern_data, model, stream, original_data)
+        except Exception as e:
+            logger.error(f"Code processor failed: {str(e)}")
+            return jsonify({"error": f"Code processor failed: {str(e)}"}), 500
 
 
     def generate_code(self, data):
@@ -136,7 +143,7 @@ class CodeProcessor:
                             if 'choices' in data and data['choices']:
                                 content = data['choices'][0].get('delta', {}).get('content', '')
                                 if content:
-                                    yield f"data: {json.dumps({
+                                    chunk_data = {
                                         'id': f'chatcmpl-{int(time.time())}',
                                         'object': 'chat.completion.chunk',
                                         'created': int(time.time()),
@@ -146,13 +153,14 @@ class CodeProcessor:
                                             'delta': {'content': content},
                                             'finish_reason': None
                                         }]
-                                    })}\n\n"
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
                         else:
                             # Ollama format
                             data = json.loads(line)
                             content = data.get('response', '')
                             if content:
-                                yield f"data: {json.dumps({
+                                chunk_data = {
                                     'id': f'chatcmpl-{int(time.time())}',
                                     'object': 'chat.completion.chunk',
                                     'created': int(time.time()),
@@ -162,7 +170,8 @@ class CodeProcessor:
                                         'delta': {'content': content},
                                         'finish_reason': None
                                     }]
-                                })}\n\n"
+                                }
+                                yield f"data: {json.dumps(chunk_data)}\n\n"
                     except json.JSONDecodeError:
                         continue
                     except Exception as e:
@@ -170,7 +179,7 @@ class CodeProcessor:
                         continue
             
             # Send final done chunk
-            yield f"data: {json.dumps({
+            final_chunk = {
                 'id': f'chatcmpl-{int(time.time())}',
                 'object': 'chat.completion.chunk',
                 'created': int(time.time()),
@@ -180,7 +189,8 @@ class CodeProcessor:
                     'delta': {},
                     'finish_reason': 'stop'
                 }]
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(final_chunk)}\n\n"
             yield "data: [DONE]\n\n"
         
         return Response(generate(), mimetype='text/event-stream')
@@ -268,10 +278,6 @@ class CodeProcessor:
             Flask Response: Processed response
         """
         try:
-            if pattern_data['pattern'] in ['latin_analysis']:
-                return self.latin_processor.process(pattern_data, model, stream, original_data)
-        
-
             if pattern_data['pattern'] == 'custom':
                 filled_prompt = pattern_data.get('prompt', '')
             else:

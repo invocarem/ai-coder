@@ -11,7 +11,21 @@ def create_app():
     )
     
     # Load configuration
-    app.config.from_mapping(load_config())
+    config = load_config()
+
+    from app.processors.processor_router import ProcessorRouter
+    processor_router = ProcessorRouter(config)
+    processor_router.initialize_processors()
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Processor router initialized: {processor_router._initialized}")
+    logger.info(f"Available processors: {list(processor_router.processors.keys())}")
+    
+    # Store processor_router in app config
+    app.config['processor_router'] = processor_router
+    
+    # Also store as direct attribute for backup
+    app.processor_router = processor_router
     
     # Register blueprints
     from .routes.api_routes import api_bp

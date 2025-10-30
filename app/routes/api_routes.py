@@ -1,12 +1,9 @@
 # app/routes/api_routes.py
 from flask import Blueprint, request, jsonify
-from ..processors.code_processor import CodeProcessor
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
 
-# Initialize code processor
-code_processor = CodeProcessor()
 
 
 @api_bp.route('/api/analyze_latin', methods=['POST'])
@@ -38,7 +35,7 @@ def analyze_latin():
             'context': data.get('context', 'general')
         }
         
-        return code_processor._handle_pattern_request(
+        return current_app.processor_router.route_request(
             pattern_data, 
             code_processor.default_model, 
             False, 
@@ -47,6 +44,7 @@ def analyze_latin():
         
     except Exception as e:
         return jsonify({"error": f"Latin analysis failed: {str(e)}"}), 500
+
 @api_bp.route('/api/generate_code', methods=['POST'])
 def generate_code():
     """
@@ -76,13 +74,19 @@ def generate_code():
             'refactor_code', 'write_tests', 'add_docs', 'custom'
         ]
         
-        pattern = data.get('pattern', 'custom')
-        if pattern not in valid_patterns:
-            return jsonify({
-                "error": f"Invalid pattern. Must be one of: {', '.join(valid_patterns)}"
-            }), 400
+        pattern_data = {
+            "pattern": "write_code",
+            "language": language,
+            "task": task,
+            **data
+        }
         
-        return code_processor.generate_code(data)
+        return current_app.processor_router.route_request(
+            pattern_data,
+            data.get('model', 'deepseek-coder:6.7b'),
+            data.get('stream', False),
+            data
+        )
         
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
