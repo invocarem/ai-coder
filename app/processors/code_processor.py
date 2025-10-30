@@ -34,8 +34,17 @@ class CodeProcessor:
             
             "add_docs": "Add detailed docstring and comments to this {language} code: ```{language}\n{code}\n```. Provide the documented code with clear explanations.",
             
-            "custom": "{prompt}"
-        } 
+            "custom": """{prompt}
+            
+Additional requirements:
+- Provide complete, runnable code
+- Include comments for key sections
+- Use best practices for the specified language
+- Handle edge cases and error checking
+- Include example usage if applicable
+
+Language: {language}"""
+                    } 
 
     def process(self, pattern_data, model, stream, original_data):
         """
@@ -136,11 +145,35 @@ class CodeProcessor:
                         if isinstance(line, bytes):
                             line = line.decode('utf-8')
                         
-                        # Parse the response line based on provider format
-                        if line.startswith('data: '):
-                            # OpenAI format
-                            data = json.loads(line[6:])
-                            if 'choices' in data and data['choices']:
+                        # Skip empty lines
+                        if not line.strip():
+                            continue
+                        
+                        # Parse JSON line (Ollama /api/chat returns raw JSON lines)
+                        try:
+                            data = json.loads(line)
+                            
+                            # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}, "done": false}
+                            if 'message' in data:
+                                content = data['message'].get('content', '')
+                                done = data.get('done', False)
+                                if content:
+                                    chunk_data = {
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': 'stop' if done else None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                                if done:
+                                    break
+                            # OpenAI format: {"choices": [...]}
+                            elif 'choices' in data and data['choices']:
                                 content = data['choices'][0].get('delta', {}).get('content', '')
                                 if content:
                                     chunk_data = {
@@ -155,27 +188,48 @@ class CodeProcessor:
                                         }]
                                     }
                                     yield f"data: {json.dumps(chunk_data)}\n\n"
-                        else:
-                            # Ollama format
-                            data = json.loads(line)
-                            content = data.get('response', '')
-                            if content:
-                                chunk_data = {
-                                    'id': f'chatcmpl-{int(time.time())}',
-                                    'object': 'chat.completion.chunk',
-                                    'created': int(time.time()),
-                                    'model': model,
-                                    'choices': [{
-                                        'index': 0,
-                                        'delta': {'content': content},
-                                        'finish_reason': None
-                                    }]
-                                }
-                                yield f"data: {json.dumps(chunk_data)}\n\n"
+                            # Ollama /api/generate format (backward compatibility): {"response": "..."}
+                            elif 'response' in data:
+                                content = data.get('response', '')
+                                if content:
+                                    chunk_data = {
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                        except json.JSONDecodeError:
+                            # Try SSE format (data: {...})
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'choices' in data and data['choices']:
+                                        content = data['choices'][0].get('delta', {}).get('content', '')
+                                        if content:
+                                            chunk_data = {
+                                                'id': f'chatcmpl-{int(time.time())}',
+                                                'object': 'chat.completion.chunk',
+                                                'created': int(time.time()),
+                                                'model': model,
+                                                'choices': [{
+                                                    'index': 0,
+                                                    'delta': {'content': content},
+                                                    'finish_reason': None
+                                                }]
+                                            }
+                                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                                except json.JSONDecodeError:
+                                    continue
                     except json.JSONDecodeError:
                         continue
                     except Exception as e:
-                        print(f"Error processing stream line: {e}")
+                        logger.debug(f"Error processing stream line: {e}")
                         continue
             
             # Send final done chunk
@@ -279,7 +333,26 @@ class CodeProcessor:
         """
         try:
             if pattern_data['pattern'] == 'custom':
-                filled_prompt = pattern_data.get('prompt', '')
+                prompt = pattern_data.get('prompt', '')
+                language = pattern_data.get('language', 'Python')
+                code = pattern_data.get('code', '')  # Get the code if it exists
+            
+                if not prompt:
+                    return jsonify({"error": "Custom prompt is required for 'custom' pattern"}), 400
+
+
+                # Use the existing prompt pattern and add code/data if provided
+                filled_prompt = self.prompt_patterns[pattern_data['pattern']].format(
+                    prompt=prompt,
+                    language=language
+                )
+            
+                # Add code/data section if code exists
+                if code and code.strip():
+                    # For text data (like CSV), use a text or data code block
+                    data_section = f"\n\nInput data:\n```\n{code}\n```"
+                    filled_prompt += data_section
+            
             else:
                 # Get all required parameters with defaults
                 language = pattern_data.get('language', 'Python')
@@ -354,9 +427,17 @@ class CodeProcessor:
 
     def _format_openai_response(self, response, model):
         """Format non-streaming response in OpenAI-compatible format"""
-        if hasattr(response, 'get') and 'choices' in response:  # OpenAI format
+        # Handle different response formats
+        content = None
+        
+        # OpenAI format: {"choices": [{"message": {"content": "..."}}]}
+        if hasattr(response, 'get') and 'choices' in response:
             content = response["choices"][0]["message"]["content"]
-        elif hasattr(response, 'get') and 'response' in response:  # Ollama format
+        # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}}
+        elif hasattr(response, 'get') and 'message' in response:
+            content = response["message"].get("content", "")
+        # Ollama /api/generate format (backward compatibility): {"response": "..."}
+        elif hasattr(response, 'get') and 'response' in response:
             content = response["response"]
         else:
             content = str(response)

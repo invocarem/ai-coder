@@ -46,14 +46,82 @@ class OllamaProvider(AIProvider):
             return response.json()
 
     def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
-        # Convert messages to Ollama format
-        conversation = []
-        for msg in messages:
-            conversation.append(f"{msg['role']}: {msg['content']}")
+        # Try Ollama's /api/chat endpoint first (newer versions)
+        # If it fails with 404, fall back to /api/generate (older versions)
+        payload_chat = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+            "options": {
+                "temperature": kwargs.get('temperature', 0.1),
+                "top_p": kwargs.get('top_p', 0.9),
+                "top_k": kwargs.get('top_k', 40),
+                "num_predict": kwargs.get('max_tokens', 4096)
+            }
+        }
         
-        prompt = "\n".join(conversation) + "\nassistant: "
-        
-        return self.generate(prompt, model, stream, **kwargs)
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json=payload_chat,
+                timeout=self.timeout,
+                stream=stream
+            )
+            response.raise_for_status()
+            
+            if stream:
+                return response.iter_lines(decode_unicode=True)
+            else:
+                return response.json()
+        except requests.exceptions.HTTPError as e:
+            # If /api/chat returns 404 (not available in this Ollama version), fall back to /api/generate
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            if hasattr(e, 'response') and e.response.status_code == 404:
+                logger.warning(f"Ollama /api/chat endpoint returned 404, falling back to /api/generate. This suggests an older Ollama version or misconfiguration.")
+                # Convert messages to prompt format for /api/generate
+                conversation = []
+                for msg in messages:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    if role == 'system':
+                        conversation.append(f"System: {content}")
+                    elif role == 'user':
+                        conversation.append(f"User: {content}")
+                    elif role == 'assistant':
+                        conversation.append(f"Assistant: {content}")
+                
+                prompt = "\n".join(conversation) + "\nAssistant: "
+                
+                payload_generate = {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": stream,
+                    "options": {
+                        "temperature": kwargs.get('temperature', 0.1),
+                        "top_p": kwargs.get('top_p', 0.9),
+                        "top_k": kwargs.get('top_k', 40),
+                        "num_predict": kwargs.get('max_tokens', 4096)
+                    }
+                }
+                
+                response = requests.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload_generate,
+                    timeout=self.timeout,
+                    stream=stream
+                )
+                response.raise_for_status()
+                
+                if stream:
+                    return response.iter_lines(decode_unicode=True)
+                else:
+                    return response.json()
+            else:
+                # Not a 404 error, re-raise
+                logger.error(f"Ollama /api/chat endpoint error: {e.response.status_code if hasattr(e, 'response') else 'unknown'} - {str(e)}")
+                raise
 
 class OpenAIProvider(AIProvider):
     def __init__(self, base_url: str, api_key: str, timeout: float):

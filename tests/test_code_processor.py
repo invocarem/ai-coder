@@ -25,8 +25,7 @@ class TestCodeProcessor:
             mock_ai_provider = Mock()
             mock_factory.create_provider.return_value = mock_ai_provider
             
-            processor = CodeProcessor()
-            processor.ai_provider = mock_ai_provider
+            processor = CodeProcessor(ai_provider=mock_ai_provider)
             processor.pattern_detector = mock_detector_instance
             
             return processor

@@ -1,9 +1,10 @@
 # app/processors/latin_processor.py
 import logging
-import re
 from flask import jsonify, Response
 import json
 import time
+import requests
+from app.config import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,9 @@ class LatinProcessor:
     
     def __init__(self, ai_provider):
         self.ai_provider = ai_provider
-        
+        self.config = load_config()
+        self.default_model = self.config["DEFAULT_MODEL"]
+
         self.prompt_templates = {
             "latin_analysis": """
 Analyze the Latin word: **{word_form}**
@@ -24,7 +27,7 @@ Please provide a COMPLETE morphological analysis following this EXACT structure:
 **MEANING:** [primary English translation]
 
 **GRAMMATICAL ANALYSIS:**
-- **Lemma:** [prsent for verb, nominative singular for noun/adjective]
+- **Lemma:** [present for verb, nominative singular for noun/adjective]
 - **Case:** [nominative/genitive/dative/accusative/ablative/vocative/locative - if applicable]
 - **Number:** [singular/plural - if applicable]  
 - **Gender:** [masculine/feminine/neuter - if applicable]
@@ -83,6 +86,9 @@ Word to analyze: {word_form}
     def _call_ai_provider(self, prompt, model, stream, original_data):
         """Call AI provider and format response"""
         try:
+            logger.info(f"AI Provider type: {type(self.ai_provider)}")
+            logger.info(f"AI Provider methods: {dir(self.ai_provider)}")
+
             options = {
                 "temperature": original_data.get('temperature', 0.1),
                 "top_p": original_data.get('top_p', 0.9),
@@ -95,19 +101,30 @@ Word to analyze: {word_form}
             logger.info(prompt)
             logger.info("=== END PROMPT ===")
             
-            if stream:
-                response = self.ai_provider.generate_openai_compatible(
-                    messages, model, stream=True, **options
-                )
-                return self._format_streaming_response(response, model)
+            # Use the AI provider's OpenAI-compatible interface
+            response = self.ai_provider.generate_openai_compatible(
+                messages, model, stream=stream, **options
+            )
+            
+            logger.info(f"Stream mode: {stream}, AI Provider response type: {type(response)}")
+            if not stream:
+                logger.info(f"AI Provider response content (first 500 chars): {str(response)[:500]}")
             else:
-                response = self.ai_provider.generate_openai_compatible(
-                    messages, model, stream=False, **options
-                )
-                return self._format_openai_response(response, model)
+                logger.info(f"Streaming response received, will process line by line")
+            
+            if stream:
+                logger.info("Formatting streaming response...")
+                result = self._format_streaming_response(response, model)
+                logger.info("Streaming response formatted successfully")
+                return result
+            else:
+                logger.info("Formatting non-streaming response...")
+                result = self._format_openai_response(response, model)
+                logger.info("Non-streaming response formatted successfully")
+                return result
                 
         except Exception as e:
-            logger.error(f"Latin analysis failed: {str(e)}")
+            logger.error(f"Latin analysis failed: {str(e)}", exc_info=True)
             return jsonify({"error": f"Latin analysis failed: {str(e)}"}), 500
     
     def _format_streaming_response(self, response, model):
@@ -119,9 +136,35 @@ Word to analyze: {word_form}
                         if isinstance(line, bytes):
                             line = line.decode('utf-8')
                         
-                        if line.startswith('data: '):
-                            data = json.loads(line[6:])
-                            if 'choices' in data and data['choices']:
+                        # Skip empty lines
+                        if not line.strip():
+                            continue
+                        
+                        # Parse JSON line (Ollama /api/chat returns raw JSON lines)
+                        try:
+                            data = json.loads(line)
+                            
+                            # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}, "done": false}
+                            if 'message' in data:
+                                content = data['message'].get('content', '')
+                                done = data.get('done', False)
+                                if content:
+                                    chunk = {
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': 'stop' if done else None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(chunk)}\n\n"
+                                if done:
+                                    break
+                            # OpenAI format: {"choices": [...]}
+                            elif 'choices' in data and data['choices']:
                                 content = data['choices'][0].get('delta', {}).get('content', '')
                                 if content:
                                     chunk = {
@@ -136,22 +179,44 @@ Word to analyze: {word_form}
                                         }]
                                     }
                                     yield f"data: {json.dumps(chunk)}\n\n"
-                        else:
-                            data = json.loads(line)
-                            content = data.get('response', '')
-                            if content:
-                                chunk = {
-                                    'id': f'chatcmpl-{int(time.time())}',
-                                    'object': 'chat.completion.chunk',
-                                    'created': int(time.time()),
-                                    'model': model,
-                                    'choices': [{
-                                        'index': 0,
-                                        'delta': {'content': content},
-                                        'finish_reason': None
-                                    }]
-                                }
-                                yield f"data: {json.dumps(chunk)}\n\n"
+                            # Ollama /api/generate format (backward compatibility): {"response": "..."}
+                            elif 'response' in data:
+                                content = data.get('response', '')
+                                if content:
+                                    chunk = {
+                                        'id': f'chatcmpl-{int(time.time())}',
+                                        'object': 'chat.completion.chunk',
+                                        'created': int(time.time()),
+                                        'model': model,
+                                        'choices': [{
+                                            'index': 0,
+                                            'delta': {'content': content},
+                                            'finish_reason': None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(chunk)}\n\n"
+                        except json.JSONDecodeError:
+                            # Try SSE format (data: {...})
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'choices' in data and data['choices']:
+                                        content = data['choices'][0].get('delta', {}).get('content', '')
+                                        if content:
+                                            chunk = {
+                                                'id': f'chatcmpl-{int(time.time())}',
+                                                'object': 'chat.completion.chunk',
+                                                'created': int(time.time()),
+                                                'model': model,
+                                                'choices': [{
+                                                    'index': 0,
+                                                    'delta': {'content': content},
+                                                    'finish_reason': None
+                                                }]
+                                            }
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+                                except json.JSONDecodeError:
+                                    continue
 
                     except (json.JSONDecodeError, Exception) as e:
                         logger.debug(f"Error processing stream line: {e}")
@@ -170,7 +235,6 @@ Word to analyze: {word_form}
                 }]
             }
             yield f"data: {json.dumps(final_chunk)}\n\n"
-
             yield "data: [DONE]\n\n"
         
         return Response(generate(), mimetype='text/event-stream')
@@ -178,11 +242,30 @@ Word to analyze: {word_form}
     def _format_openai_response(self, response, model):
         """Format non-streaming response in OpenAI-compatible format"""
         try:
-            if hasattr(response, 'get') and 'choices' in response:
+            # Log the raw response for debugging
+            logger.info(f"Raw response type: {type(response)}, hasattr get: {hasattr(response, 'get')}")
+            if hasattr(response, 'get'):
+                logger.info(f"Response keys: {list(response.keys()) if isinstance(response, dict) else 'not a dict'}")
+            
+            # Handle different response formats
+            content = None
+            
+            # OpenAI format: {"choices": [{"message": {"content": "..."}}]}
+            if isinstance(response, dict) and 'choices' in response:
                 content = response["choices"][0]["message"]["content"]
-            elif hasattr(response, 'get') and 'response' in response:
+            # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}}
+            elif isinstance(response, dict) and 'message' in response:
+                message = response["message"]
+                if isinstance(message, dict):
+                    content = message.get("content", "")
+                else:
+                    content = str(message)
+            # Ollama /api/generate format (backward compatibility): {"response": "..."}
+            elif isinstance(response, dict) and 'response' in response:
                 content = response["response"]
             else:
+                # Try to extract content from any format
+                logger.warning(f"Unexpected response format: {type(response)} - {response}")
                 content = str(response)
             
             logger.info("=== LATIN ANALYSIS RESPONSE ===")
@@ -213,9 +296,43 @@ Word to analyze: {word_form}
             return jsonify({"error": f"Error formatting response: {str(e)}"}), 500
 
     def health_check(self):
-        """Health check for Latin processor"""
-        return jsonify({
-            "status": "healthy",
-            "processor": "latin_processor",
-            "supported_patterns": ["latin_analysis"]
-        })
+        """
+        Health check endpoint implementation
+        Matches the CodeProcessor pattern
+        """
+        try:
+            # For now, just check if we can create a provider
+            # You might want to add actual health checks per provider later
+            provider_type = self.config.get("AI_PROVIDER", "ollama")
+            
+            return jsonify({
+                "status": "healthy",
+                "ai_provider": provider_type,
+                "default_model": self.default_model,
+                "provider_connected": True,  # Basic check for now
+                "processor": "latin_processor",
+                "supported_patterns": ["latin_analysis"]
+            })
+            
+        except Exception as e:
+            return jsonify({
+                "status": "unhealthy",
+                "ai_provider": self.config.get("AI_PROVIDER", "unknown"),
+                "error": str(e),
+                "processor": "latin_processor"
+            }), 500
+
+    def get_processor_info(self):
+        """
+        Get information about the latin processor
+        Matches the CodeProcessor pattern
+        """
+        return {
+            "name": "AI Latin Processor",
+            "version": "1.0.0",
+            "default_model": self.default_model,
+            "supported_patterns": ["latin_analysis"],
+            "ai_provider": self.config.get("AI_PROVIDER", "ollama"),
+            "max_tokens": 4096,
+            "default_temperature": 0.1
+        }
