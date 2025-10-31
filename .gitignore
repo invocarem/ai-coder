@@ -53,3 +53,10 @@ models/
 
 # test files
 psalm_request.json
+
+
+# Data files - can be regenerated
+/app/data/psalms.json
+/app/data/augustine/
+
+!/app/data/augustine/.gitkeep

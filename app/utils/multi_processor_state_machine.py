@@ -33,7 +33,7 @@ class MultiProcessorStateMachine:
             'psalm': {
                 'name': 'psalm_processor',
                 'patterns': [
-                    'psalm_query', 'psalm_search', 'bible_query', 'scripture_analysis'
+                    'augustine_psalm_query','psalm_query', 'psalm_search', 'bible_query', 'scripture_analysis'
                 ]
             }
         }
@@ -57,6 +57,7 @@ class MultiProcessorStateMachine:
             'patristic_exposition': ['passage'],
             
             # Psalm patterns
+            'augustine_psalm_query': ['question'],
             'psalm_query': ['question'],
             'psalm_search': ['question'],
             'bible_query': ['question'],

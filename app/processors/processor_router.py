@@ -27,8 +27,7 @@ class ProcessorRouter:
         self.processors = {
             'code_processor': CodeProcessor(self.ai_provider),
             'latin_processor': LatinProcessor(self.ai_provider),
-            'psalm_processor': PsalmRAGProcessor(self.ai_provider),
-            'augustine': AugustineRAGProcessor(self.ai_provider)
+            'psalm_processor': PsalmRAGProcessor(self.ai_provider)
         }
         self._initialized = True
         logger.info("ProcessorRouter initialized with processors: %s", list(self.processors.keys()))
