@@ -31,7 +31,7 @@ class MultiProcessorStateMachine:
                 ]
             },
             'psalm': {
-                'name': 'psalm',
+                'name': 'psalm_processor',
                 'patterns': [
                     'psalm_query', 'psalm_search', 'bible_query', 'scripture_analysis'
                 ]

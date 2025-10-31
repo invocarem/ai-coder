@@ -5,12 +5,14 @@ import time
 from flask import jsonify, Response
 from app.rag.simple_cassandra_client import SimpleCassandraClient
 
+from app.config import load_config
 logger = logging.getLogger(__name__)
 
 class PsalmRAGProcessor:
     """RAG processor for Psalms and Augustine commentaries"""
     
     def __init__(self, ai_provider):
+        self.config = load_config()
         self.ai_provider = ai_provider
         self.db = SimpleCassandraClient()
         
