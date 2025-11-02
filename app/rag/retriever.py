@@ -10,7 +10,8 @@ class AugustineRetriever:
     
     def __init__(self, cassandra_client):
         self.cassandra_client = cassandra_client
-
+        from app.utils.psalm_number_converter import PsalmNumberConverter
+        self.converter = PsalmNumberConverter()
 
     def retrieve_relevant_context(self, question: str, psalm_number = None, verse_number = None) -> str:
         """
@@ -63,7 +64,10 @@ class AugustineRetriever:
         
         # 2. Get Augustine commentary if needed
         if needs_augustine and psalm_number is not None:
-            augustine_context = self._get_augustine_context(psalm_number, verse_number, latin_words, question)
+            # Convert Vulgate → Protestant for Augustine queries
+            protestant_psalm = self.converter.to_protestant(psalm_number)
+            logger.info(f"🔄 Augustine query conversion: Vulgate {psalm_number} → Protestant {protestant_psalm}")
+            augustine_context = self._get_augustine_context(protestant_psalm, verse_number, latin_words, question)
             if augustine_context:
                 context_parts.append(augustine_context)
         
@@ -124,7 +128,7 @@ class AugustineRetriever:
             verses_to_check = [1, 2, 3]
         
         for v in verses_to_check:
-            verse = self.cassandra_client.get_psalm_verse(psalm_number, v)
+            verse = self.cassandra_client.get_psalm_verse(psalm_number, "", v)
             if verse:
                 verse_text = f"PSALM {psalm_number}:{v}\n"
                 verse_text += f"Latin: {verse['latin_text']}\n"
@@ -182,14 +186,15 @@ class AugustineRetriever:
         # Search in Psalms
         if psalm_number:
             for v in [1, 2]:  # Check first few verses
-                verse = self.cassandra_client.get_psalm_verse(psalm_number, v)
+                verse = self.cassandra_client.get_psalm_verse(psalm_number, "", v)
                 if verse and any(word in verse['latin_text'].lower() for word in latin_words):
                     context_parts.append(f"PSALM {psalm_number}:{v} contains relevant words")
                     context_parts.append(f"Latin: {verse['latin_text']}")
         
         # Search in Augustine commentaries
         if psalm_number:
-            comments = self.cassandra_client.get_augustine_comments(psalm_number, None)
+            protestant_psalm = self.converter.to_protestant(psalm_number)
+            comments = self.cassandra_client.get_augustine_comments(protestant_psalm, None)
             for comment in comments:
                 if any(word in comment['latin_text'].lower() for word in latin_words):
                     context_parts.append(f"AUGUSTINE discusses these words in {comment['work_title']}")

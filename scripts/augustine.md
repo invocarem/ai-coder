@@ -11,3 +11,9 @@
 ### psalm_number: 1
 ### verse_number: 1
 ### question: What does Augustine say about the word "abiit" in Psalm 1:1?
+
+### processor: psalm
+### pattern: augustine_psalm_query
+### psalm_number: 1
+### verse_number: 3
+### question: What does Augustine say about the word "aquarem" in Psalm 1:3?

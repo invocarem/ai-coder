@@ -20,7 +20,6 @@ class ProcessorRouter:
         from app.processors.code_processor import CodeProcessor
         from app.processors.latin_processor import LatinProcessor
         from app.processors.psalm_rag_processor import PsalmRAGProcessor
-        from app.processors.augustine_rag_processor import AugustineRAGProcessor
         
         self.ai_provider = AIProviderFactory.create_provider(self.config)
         
@@ -64,8 +63,7 @@ class ProcessorRouter:
                 reverse_mapping = {
                     'code_processor': 'code',
                     'latin_processor': 'latin',
-                    'psalm_processor': 'psalm',
-                    'augustine': 'augustine'
+                    'psalm_processor': 'psalm'
                 }
                 if processor_name in reverse_mapping:
                     short_processor_name = reverse_mapping[processor_name]
@@ -103,8 +101,7 @@ class ProcessorRouter:
         processor_name_mapping = {
             'code': 'code_processor',
             'latin': 'latin_processor',
-            'psalm': 'psalm',
-            'augustine': 'augustine'
+            'psalm': 'psalm_processor'
         }
         if processor_name in processor_name_mapping:
             processor_name = processor_name_mapping[processor_name]
