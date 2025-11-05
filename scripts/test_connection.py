@@ -17,7 +17,7 @@ def test_connection():
         print(f"✅ Connection status: {health}")
         
         # Test basic query
-        result = client.get_psalm_verse(1, 1)
+        result = client.get_psalm_verse(1, "", 1)
         if result:
             print("✅ Can query data")
         else:
