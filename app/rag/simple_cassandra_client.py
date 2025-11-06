@@ -12,7 +12,7 @@ class SimpleCassandraClient:
     Simple Cassandra client using native Python driver (no cqlsh dependency)
     """
     
-    def __init__(self, host: str = "100.71.199.46", port: int = 9042):
+    def __init__(self, host: str = "100.109.56.33", port: int = 9042):
         self.host = host
         self.port = port
         self.keyspace = "augustine_psalms"

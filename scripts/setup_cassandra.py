@@ -7,7 +7,7 @@ from app.rag.simple_cassandra_client import SimpleCassandraClient
 
 def main():
     print("Setting up REMOTE Cassandra database for Augustine Psalms RAG...")
-    print("Target: 100.71.199.46:9042")
+    print("Target: 100.101.56.33:9042")
     
     # Initialize the WORKING Cassandra client
     cassandra_client = SimpleCassandraClient()
