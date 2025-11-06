@@ -20,7 +20,7 @@ class LatinProcessor:
     "latin_analysis": """
 Analyze the Latin word: **{word_form}**
 
-Please provide a COMPLETE morphological analysis and return ONLY a JSON object following this EXACT structure:
+Please provide a COMPLETE morphological analysis and return ONLY a JSON markdown object following this EXACT structure:
 
 For VERBS:
 {{
@@ -33,12 +33,12 @@ For VERBS:
   "perfect": "first_person_perfect",
   "supine": "supine_form",
   "translations": {{
-    "en": "primary_english_meaning",
+    "en": "present_form_english_meaning",
     "la": "latin_principal_parts"
   }},
   "forms": {{
     "present_active_subjunctive": ["list", "of", "forms"],
-    "other_paradigms": ["list", "of", "forms"]
+    "imperative": ["list", "of", "forms"]
   }}
 }}
 
@@ -46,7 +46,7 @@ For NOUNS:
 {{
   "lemma": "nominative_singular",
   "part_of_speech": "noun", 
-  "declension": 1|2|3|4|5|irregular,
+  "declension": 1|2|3|4|5|0(irregular),
   "gender": "masculine|feminine|neuter",
   "nominative": "nominative_singular",
   "genitive": "genitive_singular",
