@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   cassandra:
     image: cassandra:4.1
     ports:
       - "9042:9042"
     environment:
-      - CASSANDRA_BROADCAST_ADDRESS=0.0.0.0
+      - CASSANDRA_BROADCAST_ADDRESS=cassandra #0.0.0.0
       - CASSANDRA_CLUSTER_NAME=AugustineCluster  # Keep your original name
     volumes:
       - cassandra_data:/var/lib/cassandra
@@ -16,14 +14,20 @@ services:
       timeout: 10s
       retries: 5
 
-  whitaker:
+  whitaker-server:
     build:
-      context: ./services/whitaker  # Your existing Whitaker Dockerfile location
-    tty: true
-    stdin_open: true
-    # Optional: add volumes if you want to access Whitaker from your app
-    volumes:
-      - ./services/whitaker/bin:/opt/whitakers-words/bin:ro
+      context: ./services/whitaker-server
+      dockerfile: Dockerfile.whitaker-server
+    ports:
+      - "9090:9090"
+    environment:
+      - FLASK_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   cassandra_data:
