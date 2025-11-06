@@ -17,46 +17,80 @@ class LatinProcessor:
         self.default_model = self.config["DEFAULT_MODEL"]
 
         self.prompt_templates = {
-            "latin_analysis": """
+    "latin_analysis": """
 Analyze the Latin word: **{word_form}**
 
-Please provide a COMPLETE morphological analysis following this EXACT structure:
+Please provide a COMPLETE morphological analysis and return ONLY a JSON object following this EXACT structure:
 
-**LEMMA:** [dictionary form]
-**PART OF SPEECH:** [verb/noun/adjective/adverb/conjunction/preposition/pronoun]
-**MEANING:** [primary English translation]
+For VERBS:
+{{
+  "lemma": "first_person_present_form",
+  "part_of_speech": "verb",
+  "conjugation": 1|2|3|4|mixed|irregular,
+  "infinitive": "present_infinitive",
+  "present": "first_person_present",
+  "future": "first_person_future",
+  "perfect": "first_person_perfect",
+  "supine": "supine_form",
+  "translations": {{
+    "en": "primary_english_meaning",
+    "la": "latin_principal_parts"
+  }},
+  "forms": {{
+    "present_active_subjunctive": ["list", "of", "forms"],
+    "other_paradigms": ["list", "of", "forms"]
+  }}
+}}
 
-**GRAMMATICAL ANALYSIS:**
-- **Lemma:** [present for verb, nominative singular for noun/adjective]
-- **Case:** [nominative/genitive/dative/accusative/ablative/vocative/locative - if applicable]
-- **Number:** [singular/plural - if applicable]  
-- **Gender:** [masculine/feminine/neuter - if applicable]
-- **Tense:** [present/imperfect/future/perfect/pluperfect/future perfect - if verb]
-- **Mood:** [indicative/subjunctive/imperative/infinitive/participle/gerund/gerundive/supine - if verb]
-- **Voice:** [active/passive/deponent - if verb]
-- **Person:** [1st/2nd/3rd - if verb]
-- **Degree:** [positive/comparative/superlative - if adjective/adverb]
+For NOUNS:
+{{
+  "lemma": "nominative_singular",
+  "part_of_speech": "noun", 
+  "declension": 1|2|3|4|5|irregular,
+  "gender": "masculine|feminine|neuter",
+  "nominative": "nominative_singular",
+  "genitive": "genitive_singular",
+  "translations": {{
+    "en": "primary_english_meaning",
+    "la": "latin_dictionary_form"
+  }}
+}}
 
-**PRINCIPAL PARTS:** [only for verbs - present indicative, present infinitive, perfect indicative, supine]
-**DECLENSION/CONJUGATION:** [1st/2nd/3rd/4th/mixed/irregular]
+For ADJECTIVES:
+{{
+  "lemma": "masculine_nominative_singular",
+  "part_of_speech": "adjective",
+  "declension": 1|2|3|irregular,
+  "gender": "masculine",
+  "nominative": "masculine_nominative_singular", 
+  "genitive": "masculine_genitive_singular",
+  "translations": {{
+    "en": "primary_english_meaning",
+    "la": "latin_dictionary_form"
+  }},
+  "forms": {{
+    "nominative_f": ["feminine_nominative"],
+    "nominative_n": ["neuter_nominative"],
+    "genitive_f": ["feminine_genitive"],
+    "genitive_n": ["neuter_genitive"],
+    "other_forms": ["list", "of", "forms"]
+  }}
+}}
 
-**FULL FORM PARADIGM:**
-[Provide the complete conjugation or declension table]
-
-**ETYMOLOGY:** [brief origin information if known]
-**USAGE EXAMPLES:**
-1. [Latin example sentence] - "[English translation]"
-2. [Latin example sentence] - "[English translation]"
-
-**RELATED WORDS:**
-- [related word 1]: [meaning]
-- [related word 2]: [meaning]
-
-**NOTES:** [any special grammatical notes or irregularities]
+IMPORTANT RULES:
+- For verbs: lemma is first person singular present indicative
+- For nouns/adjectives: lemma is nominative singular
+- Include principal parts for verbs: present, infinitive, perfect, supine
+- Include key forms for nouns: nominative, genitive
+- For adjectives, include masculine forms in main fields and feminine/neuter in "forms" object
+- Use numerical values for declension/conjugation (1, 2, 3, 4, 5)
+- For irregular verbs/nouns, use "irregular" as value
+- Return ONLY the JSON object, no additional text or explanations
 
 Word to analyze: {word_form}
 """
-        }
+}
+         
 
     def process(self, pattern_data, model, stream, original_data):
         """Process Latin analysis patterns"""
