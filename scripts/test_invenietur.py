@@ -1,4 +1,4 @@
-# app/processors/test_invenietur.py
+# scripts/test_invenietur.py
 import sys
 import os
 import json
@@ -18,9 +18,8 @@ if PROJECT_ROOT not in sys.path:
 from app.rag.simple_whitaker_client import SimpleWhitakerClient
 
 TARGET_WORD = "invenietur"
-EXPECTED_LEMMA = "INVENIO"
+EXPECTED_LEMMA = "invenio"
 EXPECTED_CONJUGATION = "4"
-
 
 def extract_lemma_and_conjugation(analysis: dict) -> Tuple[Optional[str], Optional[str]]:
     """Attempt to extract lemma and conjugation data from Whitaker analysis output."""
@@ -29,16 +28,16 @@ def extract_lemma_and_conjugation(analysis: dict) -> Tuple[Optional[str], Option
         logger.warning("No raw_output present in analysis payload")
         return None, None
 
-    # Lemma line is usually the first line with principal parts: LEMMA, -re, -vi, -tus
-    lemma_match = re.search(r"^([A-Z][A-Z\-]+),", raw_output, re.MULTILINE)
-    lemma = lemma_match.group(1) if lemma_match else None
+    # Lemma is on the second line: "invenio, invenire, inveni, inventus"
+    # Look for word at beginning of line followed by comma
+    lemma_match = re.search(r"^([a-z]+),", raw_output, re.MULTILINE)
+    lemma = lemma_match.group(1).upper() if lemma_match else None
 
-    # Conjugation information tends to appear on a line starting with 'V <number>'
-    conj_match = re.search(r"^V\s+(\d)", raw_output, re.MULTILINE)
+    # Conjugation appears as "V (4th)" - capture the number
+    conj_match = re.search(r"V\s+\((\d)(?:st|nd|rd|th)\)", raw_output)
     conjugation = conj_match.group(1) if conj_match else None
 
     return lemma, conjugation
-
 
 def test_invenietur():
     logger.info("=== Whitaker Lemma/Conjugation Test ===")
@@ -55,11 +54,12 @@ def test_invenietur():
     logger.debug("Full analysis payload: %s", json.dumps(analysis, indent=2))
 
     lemma, conjugation = extract_lemma_and_conjugation(analysis)
-    logger.info("Extracted lemma: %s", lemma)
+    logger.info("Extracted lemma: %s", lemma.lower() if lemma else None)
     logger.info("Extracted conjugation: %s", conjugation)
 
-    if lemma != EXPECTED_LEMMA:
-        logger.error("❌ Lemma mismatch: expected '%s', got '%s'", EXPECTED_LEMMA, lemma)
+    if lemma.lower() != EXPECTED_LEMMA:
+        logger.error("❌ Lemma mismatch: expected '%s', got '%s'",
+                     EXPECTED_LEMMA, lemma)
         return False
 
     if conjugation != EXPECTED_CONJUGATION:
