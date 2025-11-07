@@ -17,11 +17,46 @@ class LatinProcessor:
         self.default_model = self.config["DEFAULT_MODEL"]
 
         self.prompt_templates = {
-    "latin_analysis": """
-Analyze the Latin word: **{word_form}**
+            "latin_analysis": """
+            Analyze the Latin word: {word_form}. Provide:
+            1. Lemma (first person singular present for verbs, nominative singular for nouns/adjectives)
+            2. {word_form} analysis 
+            3. JSON 
+            
+            Example JSON format for verbs:
+             {{
+    "lemma": "fero",
+    "part_of_speech": "verb",
+    "conjugation": 3,
+    "infinitive": "ferre",
+    "present": "fero", 
+    "future": "feram", 
+    "perfect": "tuli", 
+    "supine": "latum",
+    "translations": {{
+      "en": "to bear, carry, bring, endure",
+      "la": "fero, ferre, tuli, latum"
+    }},
+    "forms": {{
+      "present_active_subjunctive": [
+        "feram",
+        "feras",
+        "ferat",
+        "feramus",
+        "feratis",
+        "ferant"
+      ]
+    }}
 
-Please provide a COMPLETE morphological analysis and return ONLY a JSON markdown object following this EXACT structure:
-
+    Notes: 
+     provide {word_form} in 'forms'.
+   
+    
+  }}
+            """,
+    "full_latin_analysis": """
+            Analyze the Latin word: **{word_form}**. 
+            
 For VERBS:
 {{
   "lemma": "first_person_present_form",
