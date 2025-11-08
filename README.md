@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 ```bash
 # AI Provider Configuration
-AI_PROVIDER=ollama  # or openai, mistral
+AI_PROVIDER=ollama  # or openai, mistral, llamacpp
 OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=deepseek-coder:6.7b
 
@@ -508,7 +508,7 @@ pytest tests/ -n auto
 The application uses a flexible configuration system that supports:
 
 - **Environment Variables**: Set via `.env` file or system environment
-- **Multiple AI Providers**: Easy switching between Ollama, OpenAI, and Mistral
+- **Multiple AI Providers**: Easy switching between Ollama, OpenAI, Mistral, and llama.cpp
 - **Customizable Parameters**: Temperature, top_p, max_tokens, timeout settings
 - **Flask Configuration**: Host, port, debug mode settings
 
@@ -516,13 +516,26 @@ The application uses a flexible configuration system that supports:
 
 | Variable              | Default                  | Description                                  |
 | --------------------- | ------------------------ | -------------------------------------------- |
-| `AI_PROVIDER`         | `ollama`                 | AI provider to use (ollama, openai, mistral) |
+| `AI_PROVIDER`         | `ollama`                 | AI provider to use (ollama, openai, mistral, llamacpp) |
 | `OLLAMA_BASE_URL`     | `http://localhost:11434` | Ollama server URL                            |
+| `LLAMACPP_BASE_URL`   | `http://localhost:8080`  | llama.cpp server URL                         |
 | `DEFAULT_MODEL`       | `deepseek-coder:6.7b`    | Default model to use                         |
 | `REQUEST_TIMEOUT`     | `120`                    | Request timeout in seconds                   |
 | `MAX_TOKENS`          | `4096`                   | Maximum tokens to generate                   |
 | `DEFAULT_TEMPERATURE` | `0.1`                    | Default temperature for generation           |
 | `DEFAULT_TOP_P`       | `0.9`                    | Default top_p for generation                 |
+
+#### Using llama.cpp
+
+To route all requests through a local `llama.cpp` server:
+
+```bash
+AI_PROVIDER=llamacpp
+LLAMACPP_BASE_URL=http://localhost:8080  # adjust if your server runs elsewhere
+LLAMACPP_MODEL=gpt-oss-120b              # optional override, defaults to gpt-oss-120b
+```
+
+The server must be started with the OpenAI-compatible HTTP interface enabled (e.g., `./server -m <model> --host 0.0.0.0 --port 8080 --api`). Streaming responses are supported automatically.
 
 ## Project Structure
 

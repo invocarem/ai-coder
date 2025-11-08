@@ -16,7 +16,13 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
         
     Returns:
         dict: Configuration dictionary with the following keys:
+            - AI_PROVIDER: Selected AI provider (ollama, openai, mistral, llamacpp)
             - OLLAMA_BASE_URL: Base URL for Ollama API
+            - LLAMACPP_BASE_URL: Base URL for llama.cpp server
+            - OPENAI_BASE_URL: Base URL for OpenAI-compatible APIs
+            - OPENAI_API_KEY: API key for OpenAI-compatible providers
+            - MISTRAL_BASE_URL: Base URL for Mistral API
+            - MISTRAL_API_KEY: API key for Mistral provider
             - DEFAULT_MODEL: Default model name to use
             - REQUEST_TIMEOUT: Request timeout in seconds
             - FLASK_ENV: Flask environment (development/production)
@@ -40,17 +46,59 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
         # Build configuration dictionary
         cfg = {}
         
-        # Ollama Configuration
+        # Provider configuration
+        provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+        cfg["AI_PROVIDER"] = provider if provider else "ollama"
+        
+        # Provider-specific base URLs and credentials
         cfg["OLLAMA_BASE_URL"] = os.getenv(
             "OLLAMA_BASE_URL", 
             "http://localhost:11434"
         ).rstrip('/')  # Remove trailing slash
+        cfg["LLAMACPP_BASE_URL"] = os.getenv(
+            "LLAMACPP_BASE_URL",
+            "http://localhost:8080"
+        ).rstrip('/')
+        cfg["OPENAI_BASE_URL"] = os.getenv(
+            "OPENAI_BASE_URL",
+            "https://api.openai.com/v1"
+        ).rstrip('/')
+        cfg["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+        cfg["MISTRAL_BASE_URL"] = os.getenv(
+            "MISTRAL_BASE_URL",
+            "https://api.mistral.ai/v1"
+        ).rstrip('/')
+        cfg["MISTRAL_API_KEY"] = os.getenv("MISTRAL_API_KEY")
         
         # Model Configuration - support multiple environment variable names for compatibility
-        cfg["DEFAULT_MODEL"] = os.getenv(
-            "OLLAMA_MODEL", 
-            os.getenv("OLLAMA_DEFAULT_MODEL", "deepseek-coder:6.7b")
-        )
+        model_env_priority = ["DEFAULT_MODEL"]
+        if provider == "openai":
+            model_env_priority.extend(["OPENAI_MODEL", "OPENAI_DEFAULT_MODEL"])
+        elif provider == "mistral":
+            model_env_priority.extend(["MISTRAL_MODEL", "MISTRAL_DEFAULT_MODEL"])
+        elif provider in ("llamacpp", "llama.cpp", "llama"):
+            model_env_priority.extend(["LLAMACPP_MODEL", "LLAMACPP_DEFAULT_MODEL"])
+        else:  # ollama or others defaulting to ollama behavior
+            model_env_priority.extend(["OLLAMA_MODEL", "OLLAMA_DEFAULT_MODEL"])
+        
+        provider_default_models = {
+            "ollama": "deepseek-coder:6.7b",
+            "openai": "gpt-4o-mini",
+            "mistral": "mistral-small-latest",
+            "llamacpp": "gpt-oss-120b",
+            "llama.cpp": "gpt-oss-120b",
+            "llama": "gpt-oss-120b"
+        }
+        
+        default_model = None
+        for env_key in model_env_priority:
+            value = os.getenv(env_key)
+            if value:
+                default_model = value
+                break
+        if not default_model:
+            default_model = provider_default_models.get(provider, "deepseek-coder:6.7b")
+        cfg["DEFAULT_MODEL"] = default_model
         
         # Request Timeout Configuration
         try:
@@ -102,7 +150,13 @@ def get_default_config() -> Dict[str, Any]:
         dict: Default configuration values
     """
     return {
+        "AI_PROVIDER": "ollama",
         "OLLAMA_BASE_URL": "http://localhost:11434",
+        "LLAMACPP_BASE_URL": "http://localhost:8080",
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "OPENAI_API_KEY": None,
+        "MISTRAL_BASE_URL": "https://api.mistral.ai/v1",
+        "MISTRAL_API_KEY": None,
         "DEFAULT_MODEL": "deepseek-coder:6.7b",
         "REQUEST_TIMEOUT": 120.0,
         "FLASK_ENV": "development",
@@ -127,11 +181,35 @@ def validate_config(cfg: Dict[str, Any]) -> bool:
         bool: True if configuration is valid, False otherwise
     """
     try:
-        # Validate Ollama URL format
-        url = cfg.get("OLLAMA_BASE_URL", "")
-        if not url.startswith(('http://', 'https://')):
-            logger.error("OLLAMA_BASE_URL must start with http:// or https://")
-            return False
+        # Validate provider-specific configuration
+        provider = str(cfg.get("AI_PROVIDER", "ollama")).strip().lower()
+        
+        if provider == "ollama":
+            url = cfg.get("OLLAMA_BASE_URL", "")
+            if not url.startswith(('http://', 'https://')):
+                logger.error("OLLAMA_BASE_URL must start with http:// or https://")
+                return False
+        elif provider in ("llamacpp", "llama.cpp", "llama"):
+            url = cfg.get("LLAMACPP_BASE_URL", "")
+            if not url or not url.startswith(('http://', 'https://')):
+                logger.error("LLAMACPP_BASE_URL must start with http:// or https://")
+                return False
+        elif provider == "openai":
+            url = cfg.get("OPENAI_BASE_URL", "")
+            if not url.startswith(('http://', 'https://')):
+                logger.error("OPENAI_BASE_URL must start with http:// or https://")
+                return False
+            if not cfg.get("OPENAI_API_KEY"):
+                logger.error("OPENAI_API_KEY is required when AI_PROVIDER is 'openai'")
+                return False
+        elif provider == "mistral":
+            url = cfg.get("MISTRAL_BASE_URL", "")
+            if not url.startswith(('http://', 'https://')):
+                logger.error("MISTRAL_BASE_URL must start with http:// or https://")
+                return False
+            if not cfg.get("MISTRAL_API_KEY"):
+                logger.error("MISTRAL_API_KEY is required when AI_PROVIDER is 'mistral'")
+                return False
         
         # Validate timeout
         timeout = cfg.get("REQUEST_TIMEOUT", 0)
@@ -169,7 +247,10 @@ def get_config_summary(cfg: Dict[str, Any]) -> Dict[str, Any]:
         dict: Safe configuration summary
     """
     return {
+        "ai_provider": cfg.get("AI_PROVIDER"),
         "ollama_base_url": cfg.get("OLLAMA_BASE_URL"),
+        "llamacpp_base_url": cfg.get("LLAMACPP_BASE_URL"),
+        "openai_base_url": cfg.get("OPENAI_BASE_URL"),
         "default_model": cfg.get("DEFAULT_MODEL"),
         "request_timeout": cfg.get("REQUEST_TIMEOUT"),
         "flask_env": cfg.get("FLASK_ENV"),
@@ -194,6 +275,14 @@ class Config:
     @property
     def ollama_base_url(self) -> str:
         return self._config["OLLAMA_BASE_URL"]
+    
+    @property
+    def llama_cpp_base_url(self) -> str:
+        return self._config["LLAMACPP_BASE_URL"]
+    
+    @property
+    def ai_provider(self) -> str:
+        return self._config["AI_PROVIDER"]
     
     @property
     def default_model(self) -> str:

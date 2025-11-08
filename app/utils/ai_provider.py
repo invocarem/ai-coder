@@ -202,10 +202,54 @@ class MistralProvider(AIProvider):
         else:
             return response.json()
 
+class LlamaCppProvider(AIProvider):
+    def __init__(self, base_url: str, timeout: float):
+        self.base_url = base_url.rstrip('/')
+        self.timeout = timeout
+
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+        messages = [{"role": "user", "content": prompt}]
+        return self.generate_openai_compatible(messages, model, stream, **kwargs)
+
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+            "temperature": kwargs.get('temperature', 0.1),
+            "max_tokens": kwargs.get('max_tokens', 4096),
+            "top_p": kwargs.get('top_p', 0.9)
+        }
+
+        # llama.cpp server also supports optional parameters such as top_k or repeat_penalty.
+        # Pass through if provided in kwargs.
+        optional_params = ["top_k", "repeat_penalty", "min_p", "presence_penalty", "frequency_penalty", "stop"]
+        for param in optional_params:
+            if param in kwargs and kwargs[param] is not None:
+                payload[param] = kwargs[param]
+
+        response = requests.post(
+            f"{self.base_url}/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=self.timeout,
+            stream=stream
+        )
+        response.raise_for_status()
+
+        if stream:
+            return response.iter_lines(decode_unicode=True)
+        else:
+            return response.json()
+
 class AIProviderFactory:
     @staticmethod
     def create_provider(config: Dict[str, Any]) -> AIProvider:
-        provider_type = config.get("AI_PROVIDER", "ollama")
+        provider_type = str(config.get("AI_PROVIDER", "ollama")).strip().lower()
         
         if provider_type == "openai":
             return OpenAIProvider(
@@ -217,6 +261,11 @@ class AIProviderFactory:
             return MistralProvider(
                 base_url=config["MISTRAL_BASE_URL"],
                 api_key=config["MISTRAL_API_KEY"],
+                timeout=config["REQUEST_TIMEOUT"]
+            )
+        elif provider_type in ("llamacpp", "llama.cpp", "llama"):
+            return LlamaCppProvider(
+                base_url=config["LLAMACPP_BASE_URL"],
                 timeout=config["REQUEST_TIMEOUT"]
             )
         else:  # ollama (default)
