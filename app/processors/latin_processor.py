@@ -18,42 +18,85 @@ class LatinProcessor:
 
         self.prompt_templates = {
             "latin_analysis": """
-            Analyze the Latin word: {word_form}. Provide:
-            1. Lemma (first person singular present for verbs, nominative singular for nouns/adjectives)
-            2. {word_form} analysis 
-            3. JSON 
-            
-            Example JSON format for verbs:
-             {{
-    "lemma": "fero",
-    "part_of_speech": "verb",
-    "conjugation": 3,
-    "infinitive": "ferre",
-    "present": "fero", 
-    "future": "feram", 
-    "perfect": "tuli", 
-    "supine": "latum",
-    "translations": {{
-      "en": "to bear, carry, bring, endure",
-      "la": "fero, ferre, tuli, latum"
-    }},
-    "forms": {{
-      "present_active_subjunctive": [
-        "feram",
-        "feras",
-        "ferat",
-        "feramus",
-        "feratis",
-        "ferant"
-      ]
+Analyze the Latin word: {word_form}. 
+ Provide:
+    1. Lemma (first person singular present for verbs, nominative singular for nouns/adjectives)
+    2. {word_form} analysis 
+    3. JSON 
+    
+    Example JSON format for verbs:
+    {{
+        "lemma": "fero",
+        "part_of_speech": "verb",
+        "conjugation": 3,
+        "infinitive": "ferre",
+        "present": "fero", 
+        "future": "feram", 
+        "perfect": "tuli", 
+        "supine": "latum",
+        "translations": {{
+            "en": "to bear, carry, bring, endure",
+            "la": "fero, ferre, tuli, latum"
+        }},
+        "forms": {{
+            "present_active_subjunctive": [
+                "feram",
+                "feras",
+                "ferat",
+                "feramus",
+                "feratis",
+                "ferant"
+            ]
+
+        }}
+                                
     }}
 
-    Notes: 
-     provide {word_form} in 'forms'.
-   
-    
-  }}
-            """,
+    Example JSON format for nouns 
+    {{
+        "lemma": "ovis",
+        "part_of_speech": "noun",
+        "declension": 3,
+        "gender": "feminine",
+        "nominative": "ovis",
+        "genitive": "ovis",
+        "translations": {{
+            "en": "sheep",
+            "la": "ovis, ovis"
+        }}
+    }},
+
+    Example JSON for adjectives
+    {{
+        "lemma": "plenus",
+        "part_of_speech": "adjective",
+        "declension": 1,
+        "gender": "masculine",
+        "nominative": "plenus",
+        "genitive": "pleni",
+        "forms": {{
+            "nominative_f": ["plena"],
+            "genitive_f": ["plenae"],
+            "nominative_n": ["plenum"],
+            "genitive_n": ["pleni"]
+        }},
+        "forms_plural": {{
+            "nominative_m": ["pleni"],
+            "genitive_m": ["plenorum"],
+            "nominative_f": ["plenae"],
+            "genitive_f": ["plenarum"],
+            "nominative_n": ["plena"],
+            "genitive_n": ["plenorum"]
+        }},
+        "translations": {{
+            "en": "full, filled, complete",
+            "la": "plenus, -a, -um"
+        }}
+    }},
+Notes: 
+    add {word_form} in 'forms'.
+             """,
+
     "full_latin_analysis": """
             Analyze the Latin word: **{word_form}**. 
             
