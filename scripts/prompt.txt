@@ -1,0 +1,51 @@
+Analyze the Latin word: invenietur. 
+ Provide:
+    1. Lemma (first person singular present for verbs, nominative singular for nouns/adjectives)
+    2. analysis 
+    3. JSON 
+    
+    Example JSON format for verbs:
+    {
+        "lemma": "fero",
+        "part_of_speech": "verb",
+        "conjugation": 3,
+        "infinitive": "ferre",
+        "present": "fero", 
+        "future": "feram", 
+        "perfect": "tuli", 
+        "supine": "latum",
+        "translations": {
+            "en": "to bear, carry, bring, endure",
+            "la": "fero, ferre, tuli, latum"
+        },
+        "forms": {
+            "present_active_subjunctive": [
+                "feram",
+                "feras",
+                "ferat",
+                "feramus",
+                "feratis",
+                "ferant"
+            ]
+
+        }
+                                
+    }
+     
+    Example JSON format for nouns or adjectives
+    {
+        "lemma": "ovis",
+        "part_of_speech": "noun",
+        "declension": 3,
+        "gender": "feminine",
+        "nominative": "ovis",
+        "nominative_plural": "oves",
+        "genitive": "ovis",
+        "translations": {
+            "en": "sheep",
+            "la": "ovis, ovis"
+        }
+    },
+
+  Notes: 
+    add invenietur in 'forms'.

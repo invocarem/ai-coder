@@ -13,6 +13,14 @@ mkdir build && cd build
 sudo apt install libcurl4-openssl-dev
 cmake .. -DLLAMA_CUDA=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release -j$(nproc)
+
+###
+cmake .. -B llama.cpp/build \
+    -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON -DLLAMA_CURL=ON
+
+cmake --build . --config Release -j --clean-first --target llama-cli llama-gguf-split
+
+
 ```
 
 
@@ -33,4 +41,24 @@ cmake --build . --config Release -j$(nproc)
 
 ```web
 http://localhost:8080/
+```
+
+### run gpt-oss-120-mxfp4
+
+```bash
+!/usr/bin/env bash
+MODEL=~/models/gpt-oss-120b-mxfp4-00001-of-00003.gguf
+
+./bin/llama-server \
+    -m "$MODEL" \
+    --host 0.0.0.0 \
+    --port 8080 \
+    -ngl 40 \
+    -c 65535 \
+    -b 1 \
+    -t 8 \
+    --temp 0.7 \
+    --mlock \
+    --jinja \
+    --no-mmap
 ```
