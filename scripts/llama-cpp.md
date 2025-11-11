@@ -12,7 +12,7 @@ git clone https://github.com/ggerganov/llama.cpp
 mkdir build && cd build
 sudo apt install libcurl4-openssl-dev
 cmake .. -DLLAMA_CUDA=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release -j$(nproc)
+cmake --build . --clean-first --config Release -j$(nproc)
 
 ###
 cmake .. -B llama.cpp/build \
@@ -61,4 +61,10 @@ MODEL=~/models/gpt-oss-120b-mxfp4-00001-of-00003.gguf
     --mlock \
     --jinja \
     --no-mmap
+```
+
+### watch
+
+```
+ watch -n1 'ps -o pid,pmem,rss,vsz,cmd -p $(pgrep llama-server)'
 ```

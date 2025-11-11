@@ -1,10 +1,10 @@
 Analyze the Latin word: invenietur. 
- Provide:
+Provide:
     1. Lemma (first person singular present for verbs, nominative singular for nouns/adjectives)
-    2. analysis 
+    2. Full analysis for invenietur
     3. JSON 
-    
-    Example JSON format for verbs:
+Examples:    
+    Example JSON for verbs:
     {
         "lemma": "fero",
         "part_of_speech": "verb",
@@ -31,15 +31,14 @@ Analyze the Latin word: invenietur.
         }
                                 
     }
-     
-    Example JSON format for nouns or adjectives
+
+    Example JSON for nouns 
     {
         "lemma": "ovis",
         "part_of_speech": "noun",
         "declension": 3,
         "gender": "feminine",
         "nominative": "ovis",
-        "nominative_plural": "oves",
         "genitive": "ovis",
         "translations": {
             "en": "sheep",
@@ -47,5 +46,37 @@ Analyze the Latin word: invenietur.
         }
     },
 
-  Notes: 
-    add invenietur in 'forms'.
+    Example JSON for adjectives
+    {
+        "lemma": "plenus",
+        "part_of_speech": "adjective",
+        "declension": 1,
+        "gender": "masculine",
+        "nominative": "plenus",
+        "genitive": "pleni",
+        "forms": {
+            "nominative_f": ["plena"],
+            "genitive_f": ["plenae"],
+            "nominative_n": ["plenum"],
+            "genitive_n": ["pleni"]
+        },
+        "forms_plural": {
+            "nominative_m": ["pleni"],
+            "genitive_m": ["plenorum"],
+            "nominative_f": ["plenae"],
+            "genitive_f": ["plenarum"],
+            "nominative_n": ["plena"],
+            "genitive_n": ["plenorum"]
+        },
+        "translations": {
+            "en": "full, filled, complete",
+            "la": "plenus, -a, -um"
+        }
+    }
+
+Instructions: 
+    - follow the example to generate JSON object 
+    - don't create your own keys
+    - add invenietur in 'forms'.
+    - suffix: _f means feminine, _m means masculine, _n means neuter
+    - "forms_plural" means plural forms
