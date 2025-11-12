@@ -62,6 +62,13 @@ def chat_completions():
     if not user_message:
         return jsonify({"error": "No user message found"}), 400
 
+    # Convert to string if it's not already
+    if isinstance(user_message, list):
+        # If it's a list of message parts, join them
+        user_message = ' '.join(str(item) for item in user_message)
+    elif not isinstance(user_message, str):
+        user_message = str(user_message)
+
     from app.utils.pattern_detector import PatternDetector
     pattern_detector = PatternDetector()
     pattern_data = pattern_detector.detect_pattern(user_message)
@@ -71,6 +78,11 @@ def chat_completions():
         # Look through all messages (including assistant responses) for processor specification
         for message in messages:
             content = message.get('content', '')
+            if isinstance(content, list):
+                content = ' '.join(str(item) for item in content)
+            elif not isinstance(content, str):
+                content = str(content)
+
             if '### processor:' in content.lower():
                 # Found a processor specification in conversation history
                 historical_pattern_data = pattern_detector.detect_pattern(content)
@@ -144,7 +156,7 @@ def list_models():
         # Get default model from code processor
         default_model = processor_router.get_default_model()
     except Exception as e:
-        logger.error("Failed to obtain default model: %s", exc)
+        logger.error("Failed to obtain default model: %s", e)
         # Fallback to a hard‑coded model name if something goes really wrong
         default_model = "deepseek-coder:6.7b"
     return jsonify({

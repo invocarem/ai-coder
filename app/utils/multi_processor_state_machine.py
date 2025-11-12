@@ -67,6 +67,25 @@ class MultiProcessorStateMachine:
     def process(self, message):
         """Process message and determine which processor to use"""
         self._reset()
+
+        # ---------------------------------------------------------
+        # Normalise the incoming payload
+        # ---------------------------------------------------------
+        if isinstance(message, list):
+            # Defensive: make sure every element is a string
+            if not all(isinstance(item, str) for item in message):
+                raise TypeError(
+                    "MultiProcessorStateMachine.process received a list "
+                    "containing non‑string items."
+                )
+            # Join the list into one big string – the state‑machine works line‑wise
+            message = "\n".join(message)
+        elif not isinstance(message, str):
+            raise TypeError(
+                f"MultiProcessorStateMachine.process expects a `str` or "
+                f"`list` of `str`, got {type(message)!r}."
+            )
+
         lines = message.split('\n')
         
         for line in lines:

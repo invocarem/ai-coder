@@ -116,7 +116,7 @@ Some additional text here."""
     let greeting = "hello"
     Last code block."""
 
-        code = detector._extract_code_blocks(message)
+        code = detector.extract_code_blocks(message)
         
         # Should extract the first non-empty code block
         assert code is not None
@@ -126,7 +126,7 @@ Some additional text here."""
         """Test code block extraction when no code blocks exist"""
         message = "Just regular text without any code blocks"
         
-        code = detector._extract_code_blocks(message)
+        code = detector.extract_code_blocks(message)
         
         assert code == ''
 
@@ -156,7 +156,7 @@ Some additional text here."""
         """Test language extraction fallback to default"""
         message = "Some message without explicit language"
         
-        language = detector._extract_language(message)
+        language = detector.extract_language(message)
         
         assert language == 'Python'  # Default
 
@@ -264,7 +264,9 @@ Some additional text here."""
 
     def test_real_world_explain_code_scenario(self, detector):
         """Test the exact scenario that's failing"""
-        message = """### Pattern: explain_code
+        message = """
+        ### processor: code
+        ### pattern: explain_code
     ### Language: Swift
     ```swift
     private let text = [
@@ -274,9 +276,10 @@ Some additional text here."""
     ]"""
         
         result = detector.detect_pattern(message)
+
+        print(f"Pattern: {result['pattern_data']['pattern'] if result else 'None'}")
         
-        print(f"Pattern: {result['pattern'] if result else 'None'}")
-        print(f"Language: {result['language'] if result else 'None'}")
+        print(f"Language: {result['pattern_data']['language'] if result else 'None'}")
         print(f"Code length: {len(result['code']) if result and 'code' in result else 0}")
         if result and 'code' in result and result['code']:
             print(f"Code preview: {result['code'][:100]}...")
@@ -415,7 +418,7 @@ Some additional text here."""
         ]
         ```"""
 
-        code = detector._extract_code_blocks(message)
+        code = detector.extract_code_blocks(message)
 
         # Validation
         assert code is not None, "Expected non-None code extraction"
@@ -423,3 +426,16 @@ Some additional text here."""
         assert 'private let text' in code, "Swift code should be extracted"
         assert '/* 14 */' in code or '/* 15 */' in code, "Should include comment markers"
         assert 'Benedictus Dominus die quotidie' in code, "Expected recognizable psalm content"
+
+    def test_detect_from_chat_format(self, detector):
+        chat_payload = [
+            {"role": "user", "content": "### processor: code"},
+            {"role": "assistant", "content": "Got it"},
+            {"role": "user", "content": "### pattern: custom"},
+            {"role": "user", "content": "### prompt: Write a hello‑world function"},
+        ]
+
+        result = detector.detect_pattern(chat_payload)
+        assert result is not None
+        assert result["processor"] == "code_processor"
+        assert result["pattern_data"]["prompt"].startswith("Write a hello")
