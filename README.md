@@ -99,7 +99,6 @@ curl -X POST http://127.0.0.1:5000/api/generate_code \
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer code" \
   -d '{
     "model": "deepseek-coder:6.7b",
     "messages": [

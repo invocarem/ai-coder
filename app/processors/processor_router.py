@@ -31,12 +31,12 @@ class ProcessorRouter:
         self._initialized = True
         logger.info("ProcessorRouter initialized with processors: %s", list(self.processors.keys()))
     
-    def route_request(self, detection_result, model, stream, original_data, api_key=None):
-        """Route request to appropriate processor based on detection result or API key"""
+    def route_request(self, detection_result, model, stream, original_data):
+        """Route request to appropriate processor based on detection result"""
         if not self._initialized:
             self.initialize_processors()
         
-        logger.info(f"Router received detection result: {detection_result}, API key: {api_key}")
+        logger.info("Router received detection result: %s", detection_result)
         
         # Extract processor name and pattern data from detection result
         processor_name = None
@@ -48,12 +48,9 @@ class ProcessorRouter:
             processor_name = detection_result.get('processor')
             logger.info(f"Pattern detection found processor: {processor_name}, pattern_data: {pattern_data}")
         
-        # Processor selection priority:
-        # 1. Processor specified in message content (from pattern detection) - highest priority
-        # 2. API key - used as fallback when no processor detected in message
         if processor_name:
-            # Processor was specified in message content - use it (don't override with API key)
-            logger.info(f"Using processor '{processor_name}' from message content (API key '{api_key}' ignored for processor selection)")
+            # Processor was specified in message content - use it
+            logger.info("Using processor '%s' from message content", processor_name)
             
             # If pattern_data is empty or incomplete, try to enhance it based on the detected processor
             if not pattern_data or not pattern_data.get('pattern'):
@@ -77,25 +74,14 @@ class ProcessorRouter:
                     for key, value in default_pattern_data.items():
                         if key not in pattern_data or not pattern_data[key]:
                             pattern_data[key] = value
-        elif api_key:
-            # No processor in message content - use API key as fallback
-            processor_name = api_key
-            logger.info(f"No processor in message content, using API key '{api_key}' as processor selector")
-            
-            # Create default pattern data based on the API key
-            if not pattern_data or not pattern_data.get('pattern'):
-                default_pattern_data = self._create_default_pattern_data(api_key, original_data)
-                if not pattern_data:
-                    pattern_data = default_pattern_data
-                else:
-                    # Merge pattern_data with defaults
-                    for key, value in default_pattern_data.items():
-                        if key not in pattern_data or not pattern_data[key]:
-                            pattern_data[key] = value
         else:
-            # No pattern detected and no API key - return error
-            logger.error("No processor specified in detection result and no API key provided")
-            return self._handle_no_pattern(original_data)
+            # No pattern detected - default to code processor with a custom prompt
+            logger.info("No processor specified; defaulting to code processor with user prompt")
+            processor_name = 'code'
+            pattern_data = self._create_default_pattern_data(processor_name, original_data)
+            if not pattern_data.get('prompt'):
+                logger.error("Unable to extract user prompt for default handling")
+                return self._handle_no_pattern(original_data)
         
         # Map short processor names to full processor names
         processor_name_mapping = {
@@ -222,8 +208,8 @@ class ProcessorRouter:
         
         return all_patterns
     
-    def _create_default_pattern_data(self, api_key, original_data):
-        """Create default pattern data structure based on API key when pattern detection fails"""
+    def _create_default_pattern_data(self, processor_key, original_data):
+        """Create default pattern data structure based on processor when pattern detection fails"""
         # Get user message from original_data if available
         messages = original_data.get('messages', [])
         user_message = ""
@@ -235,14 +221,14 @@ class ProcessorRouter:
         # Create pattern_data based on processor type
         pattern_data = {}
         
-        if api_key == 'code':
+        if processor_key == 'code':
             # For code processor, use 'custom' pattern with the user message as prompt
             pattern_data = {
                 'pattern': 'custom',
                 'prompt': user_message,
                 'language': 'Python'  # default language
             }
-        elif api_key == 'latin':
+        elif processor_key == 'latin':
             # For latin processor, try to extract word_form from user message
             # Simple extraction: if message looks like a word, use it
             word_form = user_message.strip()
@@ -252,13 +238,13 @@ class ProcessorRouter:
                 'pattern': 'latin_analysis',
                 'word_form': word_form
             }
-        elif api_key in ['psalm', 'augustine']:
+        elif processor_key in ['psalm', 'augustine']:
             # For RAG processors, use the user message as question/prompt
             pattern_data = {
-                'pattern': 'psalm_query' if api_key == 'psalm' else 'patristic_exposition',
-                'question': user_message if api_key == 'psalm' else None,
-                'passage': user_message if api_key == 'augustine' else None
+                'pattern': 'psalm_query' if processor_key == 'psalm' else 'patristic_exposition',
+                'question': user_message if processor_key == 'psalm' else None,
+                'passage': user_message if processor_key == 'augustine' else None
             }
         
-        logger.info(f"Created default pattern_data for {api_key}: {pattern_data}")
+        logger.info("Created default pattern_data for %s: %s", processor_key, pattern_data)
         return pattern_data

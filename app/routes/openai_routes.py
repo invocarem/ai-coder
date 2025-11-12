@@ -8,22 +8,6 @@ openai_bp = Blueprint('openai', __name__)
 logger = logging.getLogger(__name__)
 
 
-def authenticate_api_key():
-    """Authenticate using API key from header"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return None, "Missing or invalid Authorization header"
-    
-    api_key = auth_header.replace("Bearer ", "").strip()
-    
-    # Define valid API keys - you can move this to config later
-    valid_keys = ["code", "psalm", "latin"]  # Add your valid keys here
-    
-    if api_key not in valid_keys:
-        return None, "Invalid API key"
-    
-    return api_key, None
-
 @openai_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     """
@@ -40,10 +24,6 @@ def chat_completions():
         "max_tokens": 4096
     }
     """
-
-    api_key, error = authenticate_api_key()
-    if error:
-        return jsonify({"error": error}), 401
 
     data = request.json or {}
 
@@ -136,7 +116,7 @@ def chat_completions():
         processor_router = current_app.config['processor_router']
         
         # Use router instead of direct processor
-        return processor_router.route_request(pattern_data, model, stream, data, api_key=api_key)
+        return processor_router.route_request(pattern_data, model, stream, data)
     except KeyError:
         return jsonify({"error": "Processor router not initialized"}), 500
     except Exception as e:

@@ -20,7 +20,14 @@ class CodeProcessor:
         self.default_model = self.config["DEFAULT_MODEL"]
 
         self.prompt_patterns = {
-            "write_code": "Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.",
+            "write_code": """Write a {language} function to {task}. Include type hints and docstring. Provide only the code without explanations.
+Additional requirements:
+- Provide complete, runnable code
+- Include comments for key sections
+- Use best practices for the specified language
+- Handle edge cases and error checking
+- Include example usage if applicable
+            """,
             
             "fix_bug": "Fix this {language} code: ```{language}\n{code}\n```. The issue is: {issue}.{rules_section}Provide the fixed code with comments explaining the changes.",
             
@@ -34,16 +41,8 @@ class CodeProcessor:
             
             "add_docs": "Add detailed docstring and comments to this {language} code: ```{language}\n{code}\n```. Provide the documented code with clear explanations.",
             
-            "custom": """{prompt}
-            
-Additional requirements:
-- Provide complete, runnable code
-- Include comments for key sections
-- Use best practices for the specified language
-- Handle edge cases and error checking
-- Include example usage if applicable
+            "custom": """{prompt}"""
 
-Language: {language}"""
                     } 
 
     def process(self, pattern_data, model, stream, original_data):
