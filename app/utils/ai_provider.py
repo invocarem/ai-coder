@@ -148,6 +148,25 @@ class OpenAIProvider(AIProvider):
             "max_tokens": kwargs.get('max_tokens', 4096),
             "top_p": kwargs.get('top_p', 0.9)
         }
+
+        optional_keys = [
+            "tools",
+            "functions",
+            "tool_choice",
+            "response_format",
+            "logit_bias",
+            "user",
+            "stop",
+            "n",
+            "presence_penalty",
+            "frequency_penalty",
+            "stream_options",
+            "seed"
+        ]
+        for key in optional_keys:
+            value = kwargs.get(key)
+            if value is not None:
+                payload[key] = value
         
         response = requests.post(
             f"{self.base_url}/chat/completions",
@@ -187,6 +206,25 @@ class MistralProvider(AIProvider):
             "max_tokens": kwargs.get('max_tokens', 4096),
             "top_p": kwargs.get('top_p', 0.9)
         }
+
+        optional_keys = [
+            "tools",
+            "functions",
+            "tool_choice",
+            "response_format",
+            "logit_bias",
+            "user",
+            "stop",
+            "n",
+            "presence_penalty",
+            "frequency_penalty",
+            "stream_options",
+            "seed"
+        ]
+        for key in optional_keys:
+            value = kwargs.get(key)
+            if value is not None:
+                payload[key] = value
         
         response = requests.post(
             f"{self.base_url}/chat/completions",

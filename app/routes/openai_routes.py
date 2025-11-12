@@ -31,6 +31,74 @@ def chat_completions():
     messages = data.get('messages', [])
     model = data.get('model', 'deepseek-coder:6.7b')
     stream = data.get('stream', False)
+
+    # Determine if we should bypass pattern routing (needed for VS Code Cline/tooling scenarios)
+    passthrough_keys = ('tools', 'functions', 'tool_choice', 'response_format', 'stream_options')
+    should_passthrough = any(key in data and data[key] for key in passthrough_keys)
+    if not should_passthrough:
+        for message in messages:
+            if isinstance(message, dict) and message.get('tool_calls'):
+                should_passthrough = True
+                break
+
+    if should_passthrough:
+        logger.info("Bypassing pattern detection for OpenAI-compatible request with tooling metadata")
+        try:
+            processor_router = current_app.config['processor_router']
+        except KeyError:
+            return jsonify({"error": "Processor router not initialized"}), 500
+
+        ai_provider = getattr(processor_router, "ai_provider", None)
+        if ai_provider is None:
+            return jsonify({"error": "AI provider not initialized"}), 500
+
+        forward_options = {
+            "temperature": data.get('temperature', 0.1),
+            "top_p": data.get('top_p', 0.9),
+            "max_tokens": data.get('max_tokens', 4096),
+            "tools": data.get('tools'),
+            "functions": data.get('functions'),
+            "tool_choice": data.get('tool_choice'),
+            "response_format": data.get('response_format'),
+            "logit_bias": data.get('logit_bias'),
+            "user": data.get('user'),
+            "stop": data.get('stop'),
+            "n": data.get('n'),
+            "presence_penalty": data.get('presence_penalty'),
+            "frequency_penalty": data.get('frequency_penalty'),
+            "stream_options": data.get('stream_options'),
+            "seed": data.get('seed')
+        }
+        # Remove None values so providers don't receive unsupported keys
+        forward_options = {k: v for k, v in forward_options.items() if v is not None}
+
+        try:
+            response = ai_provider.generate_openai_compatible(
+                messages,
+                model,
+                stream=stream,
+                **forward_options
+            )
+        except Exception as exc:
+            logger.exception("Failed to forward OpenAI-compatible request: %s", exc)
+            return jsonify({"error": f"Failed to forward OpenAI-compatible request: {str(exc)}"}), 500
+
+        if stream:
+            def passthrough_stream():
+                for chunk in response:
+                    if chunk is None:
+                        continue
+                    if isinstance(chunk, bytes):
+                        chunk = chunk.decode('utf-8', errors='ignore')
+                    # `iter_lines` strips newlines; re-add so SSE clients behave correctly
+                    yield f"{chunk}\n"
+
+            return current_app.response_class(
+                passthrough_stream(),
+                mimetype='text/event-stream'
+            )
+
+        return jsonify(response)
     
     # Get the last user message (usually the most recent one)
     user_message = ""
