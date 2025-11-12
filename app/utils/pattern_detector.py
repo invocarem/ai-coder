@@ -88,6 +88,28 @@ class PatternDetector:
         # first try the state‑machine (keeps existing behaviour)
         result = self.state_machine.process(message)
         if result:
+            parsed = self._parse_structured_format(message)
+            if parsed:
+                # The state‑machine already supplies: processor, pattern,
+                # specified_processor and pattern_data.  We keep those,
+                # but add the extra fields if they are not present.
+                for key, value in parsed.items():
+                    # skip the keys that are part of the core result shape
+                    if key in ('processor', 'pattern', 'specified_processor',
+                            'pattern_data'):
+                        continue
+                    # only set the key when the state‑machine didn’t already give us one
+                    if key not in result or not result.get(key):
+                        result[key] = value
+
+            pattern_data = result.get('pattern_data', {})
+            for key, value in pattern_data.items():
+                # skip keys we already expose directly
+                if key in ('processor', 'specified_processor', 'pattern_data'):
+                    continue
+                if key not in result:
+                    result[key] = value
+
             logger.info(
                 f"✅ {'EXPLICIT' if result['specified_processor'] else 'AUTO‑DETECTED'} "
                 f"- Pattern '{result['pattern_data']['pattern']}' → Processor: {result['processor']}"
@@ -247,28 +269,48 @@ class PatternDetector:
         i = 0
         while i < len(lines):
             line = lines[i]
+
+            # ----------------------------------------------------------- #
             # Pattern header (mandatory)
+            # ----------------------------------------------------------- #
             m = re.match(r'^\s*###\s*Pattern\s*:?\s*(\w+)', line, re.IGNORECASE)
             if m:
                 data['pattern'] = m.group(1).strip()
                 i += 1
                 continue
 
+            # ----------------------------------------------------------- #
             # Generic key/value header (allow optional colon)
+            # ----------------------------------------------------------- #
             m = re.match(r'^\s*###\s*([\w-]+)\s*:?\s*(.*)', line, re.IGNORECASE)
             if m:
                 key = m.group(1).lower()
-                # If the value is on the same line capture it, otherwise pull multiline
-                if m.group(2):
-                    value = m.group(2).strip()
-                else:
-                    value = pull_value(i)
+                # start with whatever is after the colon on the same line
+                value_parts = [m.group(2).strip()] if m.group(2).strip() else []
+
+                # -----------------------------------------------------------------
+                # Collect following lines that are *not* a new ### header.
+                # This works for both:
+                #   - value on the next line only
+                #   - value on the same line **and** continues on later lines
+                # -----------------------------------------------------------------
+                j = i + 1
+                while j < len(lines):
+                    nxt = lines[j]
+                    if re.match(r'^\s*###\s*\w+', nxt):
+                        break
+                    value_parts.append(nxt.rstrip())
+                    j += 1
+
+                # Join the collected parts, stripping trailing new‑lines/spaces
+                value = "\n".join(part for part in value_parts if part).strip()
                 data[key] = value
-                i += 1
+                i = j
                 continue
 
             i += 1
 
+           
         # Must have a known pattern
         if 'pattern' not in data:
             return None
