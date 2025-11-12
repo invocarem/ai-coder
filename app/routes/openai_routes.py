@@ -138,15 +138,15 @@ def list_models():
     OpenAI-compatible models endpoint
     """
     # Get processor_router from the app context
-    processor_router = current_app.processor_router
-    
-    # Ensure processors are initialized
-    if not processor_router._initialized:
-        processor_router.initialize_processors()
-    
-    # Get default model from code processor
-    default_model = processor_router.processors['code'].default_model
-    
+    processor_router = current_app.config['processor_router']
+
+    try: 
+        # Get default model from code processor
+        default_model = processor_router.get_default_model()
+    except Exception as e:
+        logger.error("Failed to obtain default model: %s", exc)
+        # Fallback to a hard‑coded model name if something goes really wrong
+        default_model = "deepseek-coder:6.7b"
     return jsonify({
         "object": "list",
         "data": [

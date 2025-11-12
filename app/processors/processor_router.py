@@ -173,6 +173,18 @@ class ProcessorRouter:
         
         return jsonify(health_status)
     
+
+    def get_default_model(self):
+        """Return the default model of the code processor (used by /v1/models)."""
+        # Guard against the router not being initialized yet
+        if not self._initialized:
+            self.initialize_processors()
+        # The code processor is always present after init
+        code_proc = self.processors.get('code_processor')
+        if not code_proc:
+            raise RuntimeError("Code processor not available")
+        return getattr(code_proc, "default_model", None)
+
     def get_processor_info(self, processor_name=None):
         """Get information about processors"""
         if not self._initialized:
