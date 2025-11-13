@@ -10,6 +10,7 @@ from app.utils.ai_provider import AIProviderFactory
 from app.config import load_config
 
 logger = logging.getLogger(__name__)
+stream_logger = logging.getLogger("stream_debug")
 
 class CodeProcessor:
     def __init__(self, ai_provider):
@@ -137,101 +138,163 @@ Additional requirements:
     def _format_streaming_response(self, response, model):
         """Format streaming response in OpenAI-compatible format"""
         def generate():
-            for line in response:
-                if line:
-                    try:
-                        # Decode bytes to string if needed
-                        if isinstance(line, bytes):
-                            line = line.decode('utf-8')
-                        
-                        # Skip empty lines
-                        if not line.strip():
-                            continue
-                        
-                        # Parse JSON line (Ollama /api/chat returns raw JSON lines)
+            error_message = None
+            content_emitted = False
+            should_log_stream = bool(stream_logger.handlers) and stream_logger.isEnabledFor(logging.INFO)
+            collected_chunks = [] if should_log_stream else None
+            try:
+                for line in response:
+                    if line:
                         try:
-                            data = json.loads(line)
+                            # Decode bytes to string if needed
+                            if isinstance(line, bytes):
+                                line = line.decode('utf-8')
                             
-                            # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}, "done": false}
-                            if 'message' in data:
-                                content = data['message'].get('content', '')
-                                done = data.get('done', False)
-                                if content:
-                                    chunk_data = {
-                                        'id': f'chatcmpl-{int(time.time())}',
-                                        'object': 'chat.completion.chunk',
-                                        'created': int(time.time()),
-                                        'model': model,
-                                        'choices': [{
-                                            'index': 0,
-                                            'delta': {'content': content},
-                                            'finish_reason': 'stop' if done else None
-                                        }]
-                                    }
-                                    yield f"data: {json.dumps(chunk_data)}\n\n"
-                                if done:
-                                    break
-                            # OpenAI format: {"choices": [...]}
-                            elif 'choices' in data and data['choices']:
-                                content = data['choices'][0].get('delta', {}).get('content', '')
-                                if content:
-                                    chunk_data = {
-                                        'id': f'chatcmpl-{int(time.time())}',
-                                        'object': 'chat.completion.chunk',
-                                        'created': int(time.time()),
-                                        'model': model,
-                                        'choices': [{
-                                            'index': 0,
-                                            'delta': {'content': content},
-                                            'finish_reason': None
-                                        }]
-                                    }
-                                    yield f"data: {json.dumps(chunk_data)}\n\n"
-                            # Ollama /api/generate format (backward compatibility): {"response": "..."}
-                            elif 'response' in data:
-                                content = data.get('response', '')
-                                if content:
-                                    chunk_data = {
-                                        'id': f'chatcmpl-{int(time.time())}',
-                                        'object': 'chat.completion.chunk',
-                                        'created': int(time.time()),
-                                        'model': model,
-                                        'choices': [{
-                                            'index': 0,
-                                            'delta': {'content': content},
-                                            'finish_reason': None
-                                        }]
-                                    }
-                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                            # Skip empty lines
+                            if not line.strip():
+                                continue
+                            
+                            # Parse JSON line (Ollama /api/chat returns raw JSON lines)
+                            try:
+                                data = json.loads(line)
+                                
+                                # Ollama /api/chat format: {"message": {"content": "...", "role": "assistant"}, "done": false}
+                                if 'message' in data:
+                                    content = data['message'].get('content', '')
+                                    done = data.get('done', False)
+                                    if content:
+                                        if should_log_stream:
+                                            collected_chunks.append(content)
+                                        content_emitted = True
+                                        chunk_data = {
+                                            'id': f'chatcmpl-{int(time.time())}',
+                                            'object': 'chat.completion.chunk',
+                                            'created': int(time.time()),
+                                            'model': model,
+                                            'choices': [{
+                                                'index': 0,
+                                                'delta': {'content': content},
+                                                'finish_reason': 'stop' if done else None
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+                                    if done:
+                                        break
+                                # OpenAI format: {"choices": [...]}
+                                elif 'choices' in data and data['choices']:
+                                    content = data['choices'][0].get('delta', {}).get('content', '')
+                                    if content:
+                                        if should_log_stream:
+                                            collected_chunks.append(content)
+                                        content_emitted = True
+                                        chunk_data = {
+                                            'id': f'chatcmpl-{int(time.time())}',
+                                            'object': 'chat.completion.chunk',
+                                            'created': int(time.time()),
+                                            'model': model,
+                                            'choices': [{
+                                                'index': 0,
+                                                'delta': {'content': content},
+                                                'finish_reason': None
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+                                # Ollama /api/generate format (backward compatibility): {"response": "..."}
+                                elif 'response' in data:
+                                    content = data.get('response', '')
+                                    if content:
+                                        if should_log_stream:
+                                            collected_chunks.append(content)
+                                        content_emitted = True
+                                        chunk_data = {
+                                            'id': f'chatcmpl-{int(time.time())}',
+                                            'object': 'chat.completion.chunk',
+                                            'created': int(time.time()),
+                                            'model': model,
+                                            'choices': [{
+                                                'index': 0,
+                                                'delta': {'content': content},
+                                                'finish_reason': None
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+                            except json.JSONDecodeError:
+                                # Try SSE format (data: {...})
+                                if line.startswith('data: '):
+                                    try:
+                                        data = json.loads(line[6:])
+                                        if 'choices' in data and data['choices']:
+                                            content = data['choices'][0].get('delta', {}).get('content', '')
+                                            if content:
+                                                if should_log_stream:
+                                                    collected_chunks.append(content)
+                                                content_emitted = True
+                                                chunk_data = {
+                                                    'id': f'chatcmpl-{int(time.time())}',
+                                                    'object': 'chat.completion.chunk',
+                                                    'created': int(time.time()),
+                                                    'model': model,
+                                                    'choices': [{
+                                                        'index': 0,
+                                                        'delta': {'content': content},
+                                                        'finish_reason': None
+                                                    }]
+                                                }
+                                                yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+                                    except json.JSONDecodeError:
+                                        continue
                         except json.JSONDecodeError:
-                            # Try SSE format (data: {...})
-                            if line.startswith('data: '):
-                                try:
-                                    data = json.loads(line[6:])
-                                    if 'choices' in data and data['choices']:
-                                        content = data['choices'][0].get('delta', {}).get('content', '')
-                                        if content:
-                                            chunk_data = {
-                                                'id': f'chatcmpl-{int(time.time())}',
-                                                'object': 'chat.completion.chunk',
-                                                'created': int(time.time()),
-                                                'model': model,
-                                                'choices': [{
-                                                    'index': 0,
-                                                    'delta': {'content': content},
-                                                    'finish_reason': None
-                                                }]
-                                            }
-                                            yield f"data: {json.dumps(chunk_data)}\n\n"
-                                except json.JSONDecodeError:
-                                    continue
-                    except json.JSONDecodeError:
-                        continue
-                    except Exception as e:
-                        logger.debug(f"Error processing stream line: {e}")
-                        continue
-            
-            # Send final done chunk
+                            continue
+                        except Exception as e:
+                            logger.debug(f"Error processing stream line: {e}")
+                            continue
+            except requests.exceptions.ReadTimeout as exc:
+                logger.warning("Upstream code stream timed out: %s", exc)
+                error_message = "Upstream stream timed out"
+            except requests.exceptions.RequestException as exc:
+                logger.error("Upstream code stream failed: %s", exc, exc_info=True)
+                error_message = "Upstream stream failed"
+            except Exception as exc:
+                logger.error("Unexpected streaming error: %s", exc, exc_info=True)
+                error_message = str(exc)
+
+            if error_message:
+                error_chunk = {
+                    'id': f'chatcmpl-{int(time.time())}',
+                    'object': 'chat.completion.chunk',
+                    'created': int(time.time()),
+                    'model': model,
+                    'choices': [{
+                        'index': 0,
+                        'delta': {'content': f"[server-error] {error_message}"},
+                        'finish_reason': None
+                    }]
+                }
+                yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+                if should_log_stream:
+                    stream_logger.info("Streaming error emitted: %s", error_message)
+            elif not content_emitted:
+                warning_chunk = {
+                    'id': f'chatcmpl-{int(time.time())}',
+                    'object': 'chat.completion.chunk',
+                    'created': int(time.time()),
+                    'model': model,
+                    'choices': [{
+                        'index': 0,
+                        'delta': {'content': "[server-warning] Upstream returned no content"},
+                        'finish_reason': None
+                    }]
+                }
+                yield f"data: {json.dumps(warning_chunk, ensure_ascii=False)}\n\n"
+                if should_log_stream:
+                    stream_logger.info("Streaming warning: upstream returned no content")
+            elif should_log_stream and collected_chunks:
+                merged = "".join(collected_chunks)
+                preview = merged[:5000]
+                stream_logger.info("Streaming response captured (%d chars)", len(merged))
+                if preview:
+                    stream_logger.info("Streaming preview: %s%s", preview, "..." if len(merged) > len(preview) else "")
+
             final_chunk = {
                 'id': f'chatcmpl-{int(time.time())}',
                 'object': 'chat.completion.chunk',
@@ -243,10 +306,21 @@ Additional requirements:
                     'finish_reason': 'stop'
                 }]
             }
-            yield f"data: {json.dumps(final_chunk)}\n\n"
+            yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-        
-        return Response(generate(), mimetype='text/event-stream')
+
+
+        logger.debug(
+            "Returning SSE response with explicit charset (text/event-stream; charset=utf-8)"
+        )
+        return Response(
+            generate(), 
+            mimetype='text/event-stream;charset=utf-8',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'                 # disable proxy buffering
+            }
+        )
 
     def _validate_pattern_data(self, pattern, language, code, task, prompt):
         """

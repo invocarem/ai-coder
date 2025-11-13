@@ -146,13 +146,20 @@ def chat_completions():
 
         if stream:
             def passthrough_stream():
-                for chunk in response:
-                    if chunk is None:
-                        continue
-                    if isinstance(chunk, bytes):
-                        chunk = chunk.decode('utf-8', errors='ignore')
-                    # `iter_lines` strips newlines; re-add so SSE clients behave correctly
-                    yield f"{chunk}\n"
+                try:
+                    for chunk in response:
+                        if chunk is None:
+                            continue
+                        if isinstance(chunk, bytes):
+                            chunk = chunk.decode('utf-8', errors='ignore')
+                        # `iter_lines` strips newlines; re-add so SSE clients behave correctly
+                        yield f"{chunk}\n"
+                except requests.exceptions.ReadTimeout as exc:
+                    logger.warning("Upstream stream timed out: %s", exc)
+                except requests.exceptions.RequestException as exc:
+                    logger.error("Upstream stream failed: %s", exc, exc_info=True)
+                except Exception as exc:
+                    logger.exception("Unexpected error while streaming passthrough response: %s", exc)
 
             return current_app.response_class(
                 passthrough_stream(),

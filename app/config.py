@@ -100,14 +100,33 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
             default_model = provider_default_models.get(provider, "deepseek-coder:6.7b")
         cfg["DEFAULT_MODEL"] = default_model
         
-        # Request Timeout Configuration
+        # Request Timeout Configuration (provider-specific overrides)
+        timeout_keys_by_provider = {
+            "ollama": ["OLLAMA_TIMEOUT", "OLLAMA_REQUEST_TIMEOUT"],
+            "openai": ["OPENAI_TIMEOUT", "OPENAI_REQUEST_TIMEOUT"],
+            "mistral": ["MISTRAL_TIMEOUT", "MISTRAL_REQUEST_TIMEOUT"],
+            "llamacpp": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"],
+            "llama.cpp": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"],
+            "llama": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"]
+        }
+
+        timeout_value = None
+        timeout_keys = timeout_keys_by_provider.get(provider, [])
+        for key in timeout_keys:
+            value = os.getenv(key)
+            if value:
+                timeout_value = value
+                break
+
+        if timeout_value is None:
+            timeout_value = os.getenv("REQUEST_TIMEOUT")
+        if timeout_value is None:
+            timeout_value = "120"
+
         try:
-            cfg["REQUEST_TIMEOUT"] = float(os.getenv(
-                "OLLAMA_TIMEOUT", 
-                os.getenv("OLLAMA_REQUEST_TIMEOUT", "120")
-            ))
+            cfg["REQUEST_TIMEOUT"] = float(timeout_value)
         except (ValueError, TypeError):
-            logger.warning("Invalid timeout value, using default 120 seconds")
+            logger.warning("Invalid timeout value (%s), using default 120 seconds", timeout_value)
             cfg["REQUEST_TIMEOUT"] = 120.0
         
         # Flask Configuration
@@ -128,6 +147,7 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
         cfg["MAX_TOKENS"] = int(os.getenv("MAX_TOKENS", "4096"))
         cfg["DEFAULT_TEMPERATURE"] = float(os.getenv("DEFAULT_TEMPERATURE", "0.1"))
         cfg["DEFAULT_TOP_P"] = float(os.getenv("DEFAULT_TOP_P", "0.9"))
+        cfg["STREAM_DEBUG_LOG"] = os.getenv("STREAM_DEBUG_LOG")
 
         # Data store configuration
         cfg["CASSANDRA_HOSTS"] = os.getenv("CASSANDRA_HOSTS", "127.0.0.1")
