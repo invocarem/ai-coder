@@ -9,10 +9,9 @@ from app.rag.simple_cassandra_client import SimpleCassandraClient
 
 def test_connection():
     print("Testing REMOTE Cassandra connection via Tailscale...")
-    print("Target: 100.71.199.46:9042")
     
     try:
-        client = SimpleCassandraClient()
+        client = SimpleCassandraClient(host=os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
         health = client.health_check()
         print(f"✅ Connection status: {health}")
         

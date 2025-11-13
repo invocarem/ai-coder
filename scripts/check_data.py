@@ -9,7 +9,7 @@ from app.rag.simple_cassandra_client import SimpleCassandraClient
 def check_actual_data():
     print("🔍 Checking actual data in Cassandra...")
     
-    client = SimpleCassandraClient()
+    client = SimpleCassandraClient(host=os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
     
     # Check Psalm 1:1 (with empty section)
     verse = client.get_psalm_verse(1, "", 1)  # Added section parameter

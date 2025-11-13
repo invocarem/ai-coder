@@ -128,6 +128,14 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
         cfg["MAX_TOKENS"] = int(os.getenv("MAX_TOKENS", "4096"))
         cfg["DEFAULT_TEMPERATURE"] = float(os.getenv("DEFAULT_TEMPERATURE", "0.1"))
         cfg["DEFAULT_TOP_P"] = float(os.getenv("DEFAULT_TOP_P", "0.9"))
+
+        # Data store configuration
+        cfg["CASSANDRA_HOSTS"] = os.getenv("CASSANDRA_HOSTS", "127.0.0.1")
+        try:
+            cfg["CASSANDRA_PORT"] = int(os.getenv("CASSANDRA_PORT", "9042"))
+        except (ValueError, TypeError):
+            logger.warning("Invalid CASSANDRA_PORT value, using default 9042")
+            cfg["CASSANDRA_PORT"] = 9042
         
         # Security (if needed in future)
         cfg["API_KEY"] = os.getenv("API_KEY")  # Optional API key for authentication
@@ -167,7 +175,9 @@ def get_default_config() -> Dict[str, Any]:
         "MAX_TOKENS": 4096,
         "DEFAULT_TEMPERATURE": 0.1,
         "DEFAULT_TOP_P": 0.9,
-        "API_KEY": None
+        "API_KEY": None,
+        "CASSANDRA_HOSTS": "127.0.0.1",
+        "CASSANDRA_PORT": 9042
     }
 
 def validate_config(cfg: Dict[str, Any]) -> bool:

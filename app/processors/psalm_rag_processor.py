@@ -3,6 +3,7 @@ import logging
 import json
 import time
 from flask import jsonify, Response
+from app.config import load_config
 from app.rag.simple_cassandra_client import SimpleCassandraClient
 from app.rag.retriever import AugustineRetriever  # Updated!
 
@@ -13,7 +14,10 @@ class PsalmRAGProcessor:
     
     def __init__(self, ai_provider):
         self.ai_provider = ai_provider
-        self.cassandra_client = SimpleCassandraClient()
+        self.config = load_config()
+        cassandra_host = self.config.get("CASSANDRA_HOSTS", "127.0.0.1")
+        cassandra_port = self.config.get("CASSANDRA_PORT", 9042)
+        self.cassandra_client = SimpleCassandraClient(host=cassandra_host, port=cassandra_port)
         self.retriever = AugustineRetriever(self.cassandra_client)  # Use enhanced retriever!
         
         self.prompt_templates = {

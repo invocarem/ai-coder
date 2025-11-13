@@ -3,27 +3,32 @@ from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 from cassandra.auth import PlainTextAuthProvider
 import uuid
+ 
 from typing import Optional, List
 
 logger = logging.getLogger(__name__)
+# Suppress Cassandra driver debug logs globally
+logging.getLogger('cassandra').setLevel(logging.CRITICAL)
+logging.getLogger('cassandra.connection').setLevel(logging.CRITICAL)
+logging.getLogger('cassandra').propagate = False
 
 class SimpleCassandraClient:
     """
     Simple Cassandra client using native Python driver (no cqlsh dependency)
     """
     
-    def __init__(self, host: str = "100.109.56.33", port: int = 9042):
+    def __init__(self, host: str = "127.0.0.1", port: int = 9042):
         self.host = host
         self.port = port
         self.keyspace = "augustine_psalms"
         self.cluster = None
         self.session = None
         
-        logger.info(f"Initializing Cassandra client for {host}:{port}")
+        logger.info(f"Initializing Cassandra client for {self.host}:{port}")
         
         try:
             # Connect to Cassandra
-            self.cluster = Cluster([host], port=port)
+            self.cluster = Cluster([self.host], port=port)
             self.session = self.cluster.connect()
             
             # Setup schema

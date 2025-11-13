@@ -9,7 +9,7 @@ import uuid
 def load_sample_data():
     print("Loading sample data to remote Cassandra...")
     
-    client = SimpleCassandraClient()
+    client = SimpleCassandraClient(host=os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
     
     # Sample Psalm data
     psalm_data = [

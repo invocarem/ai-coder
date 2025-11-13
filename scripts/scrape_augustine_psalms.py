@@ -16,7 +16,7 @@ from app.rag.simple_cassandra_client import SimpleCassandraClient
 class AugustinePsalmsScraper:
     def __init__(self):
         self.base_url = "https://www.newadvent.org/fathers"
-        self.client = SimpleCassandraClient()
+        self.client = SimpleCassandraClient(host=os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "data", "augustine")
         
         # Create data directory if it doesn't exist

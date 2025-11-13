@@ -11,7 +11,7 @@ from app.rag.simple_cassandra_client import SimpleCassandraClient
 
 class BenedictinePsalmsScraper:
     def __init__(self):
-        self.client = SimpleCassandraClient()
+        self.client = SimpleCassandraClient(host=os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
     
     def load_psalms_from_json(self, json_file_path: str) -> List[Dict[str, Any]]:
         """Load Psalms data from JSON file"""
