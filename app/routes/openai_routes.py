@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.processors.processor_router import ProcessorRouter
 import time
 import logging
+import requests
 
 openai_bp = Blueprint('openai', __name__)
 logger = logging.getLogger(__name__)
@@ -72,13 +73,73 @@ def chat_completions():
         # Remove None values so providers don't receive unsupported keys
         forward_options = {k: v for k, v in forward_options.items() if v is not None}
 
+        logger.debug("Starting passthrough sanitization for %d messages", len(messages))
+
+        sanitized_messages = []
+        known_tool_call_ids = set()
+        for message in messages:
+            if not isinstance(message, dict):
+                sanitized_messages.append(message)
+                continue
+
+            role = message.get('role')
+
+            if role == 'assistant':
+                tool_calls = message.get('tool_calls') or []
+                for tool_call in tool_calls:
+                    call_id = tool_call.get('id')
+                    if call_id:
+                        known_tool_call_ids.add(call_id)
+                if tool_calls:
+                    logger.debug(
+                        "Assistant message includes %d tool call(s); tracking ids: %s",
+                        len(tool_calls),
+                        list(known_tool_call_ids)
+                    )
+                sanitized_messages.append(message)
+                continue
+
+            if role == 'tool':
+                call_id = message.get('tool_call_id')
+                if call_id and call_id in known_tool_call_ids:
+                    logger.debug("Forwarding tool response for call id %s", call_id)
+                    sanitized_messages.append(message)
+                else:
+                    logger.warning(
+                        "Dropping tool message without matching assistant tool call. tool_call_id=%s",
+                        call_id
+                    )
+                continue
+
+            sanitized_messages.append(message)
+
+        logger.debug(
+            "Passthrough sanitization completed; forwarding %d messages (dropped %d). Known tool call ids: %s",
+            len(sanitized_messages),
+            len(messages) - len(sanitized_messages),
+            list(known_tool_call_ids)
+        )
+
         try:
             response = ai_provider.generate_openai_compatible(
-                messages,
+                sanitized_messages,
                 model,
                 stream=stream,
                 **forward_options
             )
+        except requests.exceptions.HTTPError as http_err:
+            status_code = http_err.response.status_code if http_err.response else 500
+            response_text = http_err.response.text if http_err.response else str(http_err)
+            logger.error(
+                "Upstream OpenAI-compatible provider returned HTTP %s: %s",
+                status_code,
+                response_text[:500]
+            )
+            return jsonify({
+                "error": "Upstream provider rejected request",
+                "status_code": status_code,
+                "upstream_response": response_text
+            }), status_code
         except Exception as exc:
             logger.exception("Failed to forward OpenAI-compatible request: %s", exc)
             return jsonify({"error": f"Failed to forward OpenAI-compatible request: {str(exc)}"}), 500
