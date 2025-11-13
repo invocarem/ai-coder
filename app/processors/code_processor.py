@@ -128,7 +128,10 @@ Additional requirements:
                 else:
                     text = str(response)
                     
-                return jsonify({"text": text})            
+                return Response(
+                    json.dumps({"text": text}),
+                    mimetype='application/json; charset=utf-8'
+                )            
                 
         except requests.exceptions.RequestException as e:
             return jsonify({"error": f"AI provider connection error: {str(e)}"}), 503
