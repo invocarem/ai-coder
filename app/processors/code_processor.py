@@ -100,7 +100,7 @@ Additional requirements:
             options = {
                 "temperature": data.get('temperature', 0.1),
                 "top_p": data.get('top_p', 0.9),
-                "max_tokens": data.get('max_tokens', 4096)
+                "max_tokens": data.get('max_tokens', self.config.get("MAX_TOKENS", 4096))
             }
 
             # DEBUG: Log the messages being sent
@@ -379,7 +379,7 @@ Additional requirements:
             options = {
                 "temperature": original_data.get('temperature', 0.1),
                 "top_p": original_data.get('top_p', 0.9),
-                "max_tokens": original_data.get('max_tokens', 4096)
+                "max_tokens": original_data.get('max_tokens', self.config.get("MAX_TOKENS", 4096))
             }
             
             if stream:
@@ -411,7 +411,7 @@ Additional requirements:
             options = {
                 "temperature": original_data.get('temperature', 0.1),
                 "top_p": original_data.get('top_p', 0.9),
-                "max_tokens": original_data.get('max_tokens', 4096)
+                "max_tokens": original_data.get('max_tokens', self.config.get("MAX_TOKENS", 4096))
             }
             
             if stream:

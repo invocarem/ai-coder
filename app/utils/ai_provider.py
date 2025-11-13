@@ -32,9 +32,11 @@ class OllamaProvider(AIProvider):
             }
         }
         
+        headers = {"Content-Type": "application/json; charset=utf-8"}
         response = requests.post(
             f"{self.base_url}/api/generate",
             json=payload,
+            headers=headers,
             timeout=self.timeout,
             stream=stream
         )
@@ -61,9 +63,11 @@ class OllamaProvider(AIProvider):
         }
         
         try:
+            headers = {"Content-Type": "application/json; charset=utf-8"}
             response = requests.post(
                 f"{self.base_url}/api/chat",
                 json=payload_chat,
+                headers=headers,
                 timeout=self.timeout,
                 stream=stream
             )
@@ -136,7 +140,7 @@ class OpenAIProvider(AIProvider):
 
     def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
         headers = {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {self.api_key}"
         }
         
@@ -194,7 +198,7 @@ class MistralProvider(AIProvider):
 
     def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
         headers = {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {self.api_key}"
         }
         
@@ -251,7 +255,7 @@ class LlamaCppProvider(AIProvider):
 
     def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json; charset=utf-8"
         }
 
         payload = {
