@@ -501,6 +501,7 @@ Additional requirements:
         except Exception as e:
             return jsonify({"error": f"Direct AI call failed: {str(e)}"}), 500
 
+
     def _format_openai_response(self, response, model):
         """Format non-streaming response in OpenAI-compatible format"""
         # Handle different response formats
@@ -518,7 +519,15 @@ Additional requirements:
         else:
             content = str(response)
         
-        return jsonify({
+        # Ensure content is properly encoded
+        if content and isinstance(content, str):
+            content = content.encode('utf-8').decode('utf-8')
+        
+        logger.debug(f"Response content: {content}")
+        logger.debug(f"Response content type: {type(content)}")
+        logger.debug(f"Response content repr: {repr(content)}")
+    
+        response_data = {
             "id": f"chatcmpl-{int(time.time())}",
             "object": "chat.completion",
             "created": int(time.time()),
@@ -536,7 +545,18 @@ Additional requirements:
                 "completion_tokens": 0,
                 "total_tokens": 0
             }
-        })
+        }
+        
+        # Return with explicit UTF-8 encoding
+        flask_response = jsonify(response_data)
+        flask_response.headers['Content-Type'] = 'application/json; charset=utf-8'
+ 
+        import json
+        response_str = json.dumps(response_data, ensure_ascii=False)
+        logger.info(f"Final JSON response: {response_str}")
+
+        return flask_response
+
 
     def health_check(self):
         """

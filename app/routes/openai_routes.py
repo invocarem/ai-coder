@@ -4,6 +4,7 @@ from app.processors.processor_router import ProcessorRouter
 import time
 import logging
 import requests
+import json
 
 openai_bp = Blueprint('openai', __name__)
 logger = logging.getLogger(__name__)
@@ -163,10 +164,27 @@ def chat_completions():
 
             return current_app.response_class(
                 passthrough_stream(),
-                mimetype='text/event-stream'
+                mimetype='text/event-stream; charset=utf-8'
             )
 
-        return jsonify(response)
+        from flask import Response
+        import json
+
+        # Ensure UTF-8 encoding for passthrough responses
+        if isinstance(response, dict):
+            # Manually encode with UTF-8
+            json_str = json.dumps(response, ensure_ascii=False)
+            return Response(
+                json_str,
+                mimetype='application/json; charset=utf-8',
+                headers={
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Content-Length': str(len(json_str.encode('utf-8')))
+                }
+            )
+        else:
+            # Fallback for non-dict responses
+            return jsonify(response)
     
     # Get the last user message (usually the most recent one)
     user_message = ""

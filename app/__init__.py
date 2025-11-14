@@ -2,6 +2,7 @@ from flask import Flask
 from .config import load_config
 import logging
 import os
+import json
 
 def create_app():
     app = Flask(__name__)
@@ -43,6 +44,14 @@ def create_app():
     
     app.config['JSON_AS_ASCII'] = False               # keep Unicode characters
     app.config['JSONIFY_MIMETYPE'] = 'application/json; charset=utf-8'
+    app.json_encoder = json.JSONEncoder
+    app.json.ensure_ascii = False
+
+
+
+    logging.getLogger('app.routes').setLevel(logging.DEBUG) 
+    logging.getLogger('app.processors').setLevel(logging.DEBUG)
+    logging.getLogger('app.utils').setLevel(logging.DEBUG)
 
     # Register blueprints
     from .routes.api_routes import api_bp
