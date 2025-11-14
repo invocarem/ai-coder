@@ -8,11 +8,13 @@ from typing import Dict, Any, Generator
 logger = logging.getLogger(__name__)
 class AIProvider(ABC):
     @abstractmethod
-    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Any:
+        """Generate a response. Returns a dict when stream=False, otherwise an iterator."""
         pass
     
     @abstractmethod
-    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Any:
+        """Generate a response compatible with OpenAI API. Returns a dict when stream=False, otherwise an iterator."""
         pass
 
 class OllamaProvider(AIProvider):
@@ -20,7 +22,7 @@ class OllamaProvider(AIProvider):
         self.base_url = base_url
         self.timeout = timeout
 
-    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Any:
         payload = {
             "model": model,
             "prompt": prompt,
@@ -48,7 +50,7 @@ class OllamaProvider(AIProvider):
         else:
             return response.json()
 
-    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Any:
         # Try Ollama's /api/chat endpoint first (newer versions)
         # If it fails with 404, fall back to /api/generate (older versions)
         payload_chat = {
@@ -134,12 +136,12 @@ class OpenAIProvider(AIProvider):
         self.api_key = api_key
         self.timeout = timeout
 
-    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Any:
         # For OpenAI, we use the chat completion endpoint
         messages = [{"role": "user", "content": prompt}]
         return self.generate_openai_compatible(messages, model, stream, **kwargs)
 
-    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Any:
         headers = {
             "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {self.api_key}"
@@ -194,11 +196,11 @@ class MistralProvider(AIProvider):
         self.api_key = api_key
         self.timeout = timeout
 
-    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Any:
         messages = [{"role": "user", "content": prompt}]
         return self.generate_openai_compatible(messages, model, stream, **kwargs)
 
-    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Any:
         headers = {
             "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {self.api_key}"
@@ -252,11 +254,11 @@ class LlamaCppProvider(AIProvider):
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
 
-    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Any:
         messages = [{"role": "user", "content": prompt}]
         return self.generate_openai_compatible(messages, model, stream, **kwargs)
 
-    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def generate_openai_compatible(self, messages: list, model: str, stream: bool = False, **kwargs) -> Any:
         headers = {
             "Content-Type": "application/json; charset=utf-8"
         }
@@ -285,8 +287,10 @@ class LlamaCppProvider(AIProvider):
             stream=stream
         )
         response.raise_for_status()
+        # Force UTF-8 encoding to avoid ISO-8859-1 defaults
+        response.encoding = "utf-8"
         logger.debug("LlamaCppProvider response status: %s", response.status_code)
-        logger.debug("LlamaCppProvider response encoding: %s", response.encoding)
+        logger.debug("LlamaCppProvider response encoding (forced): %s", response.encoding)
         logger.debug("LlamaCppProvider response content (truncated to 200 chars): %s", response.text[:200])
         if stream:
             return response.iter_lines(decode_unicode=True)

@@ -7,8 +7,19 @@ import json
 def create_app():
     app = Flask(__name__)
 
+    # Determine logging level based on VERBOSE and SHOW_INFO environment variables
+    VERBOSE = os.getenv("VERBOSE", "false").lower() == "true"
+    SHOW_INFO = os.getenv("SHOW_INFO", "false").lower() == "true"
+
+    if VERBOSE:
+        log_level = logging.DEBUG
+    elif SHOW_INFO:
+        log_level = logging.INFO
+    else:
+        log_level = logging.WARNING
+
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
@@ -44,8 +55,8 @@ def create_app():
     
     app.config['JSON_AS_ASCII'] = False               # keep Unicode characters
     app.config['JSONIFY_MIMETYPE'] = 'application/json; charset=utf-8'
-    app.json_encoder = json.JSONEncoder
-    app.json.ensure_ascii = False
+    app.json_encoder = json.JSONEncoder  # type: ignore
+    app.json.ensure_ascii = False  # type: ignore
 
 
 
