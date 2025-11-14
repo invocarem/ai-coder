@@ -2,9 +2,10 @@
 from abc import ABC, abstractmethod
 import requests
 import json
+import logging
 import time
 from typing import Dict, Any, Generator
-
+logger = logging.getLogger(__name__)
 class AIProvider(ABC):
     @abstractmethod
     def generate(self, prompt: str, model: str, stream: bool = False, **kwargs) -> Dict[str, Any]:
@@ -152,6 +153,7 @@ class OpenAIProvider(AIProvider):
             "max_tokens": kwargs.get('max_tokens', 4096),
             "top_p": kwargs.get('top_p', 0.9)
         }
+        logger.debug("LlamaCppProvider request payload: %s", payload)
 
         optional_keys = [
             "tools",
@@ -210,6 +212,7 @@ class MistralProvider(AIProvider):
             "max_tokens": kwargs.get('max_tokens', 4096),
             "top_p": kwargs.get('top_p', 0.9)
         }
+        logger.debug("LlamaCppProvider request payload: %s", payload)
 
         optional_keys = [
             "tools",
@@ -282,7 +285,9 @@ class LlamaCppProvider(AIProvider):
             stream=stream
         )
         response.raise_for_status()
-
+        logger.debug("LlamaCppProvider response status: %s", response.status_code)
+        logger.debug("LlamaCppProvider response encoding: %s", response.encoding)
+        logger.debug("LlamaCppProvider response content (truncated to 200 chars): %s", response.text[:200])
         if stream:
             return response.iter_lines(decode_unicode=True)
         else:

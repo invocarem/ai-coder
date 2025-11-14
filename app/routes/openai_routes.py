@@ -77,72 +77,46 @@ def _handle_passthrough_request(data, messages, model, stream):
     except Exception as exc:
         logger.exception("### PASSTHROUGH: Failed to forward request: %s", exc)
         return jsonify({"error": f"Failed to forward request: {str(exc)}"}), 500
-
+    
 
 def _handle_passthrough_streaming(response, model):
-    """
-    Handle streaming passthrough response with detailed logging
-    """
     logger.info("### PASSTHROUGH: Handling streaming response")
-    
-    def passthrough_stream():
-        chunk_count = 0
-        collected_content = []
-        
-        try:
-            for chunk in response:
-                chunk_count += 1
-                
-                if chunk is None:
-                    logger.debug("### PASSTHROUGH: Received None chunk")
-                    continue
-                    
-                if isinstance(chunk, bytes):
-                    chunk = chunk.decode('utf-8', errors='ignore')
-                    logger.debug("### PASSTHROUGH: Decoded bytes chunk to string")
-                
-                # Log the first few chunks to see what we're getting
-                if chunk_count <= 5:  # Log first 5 chunks
-                    logger.info("### PASSTHROUGH: Chunk %d: %s", chunk_count, repr(chunk[:200]))
-                
-                # Try to parse as JSON to extract content
-                try:
-                    # Remove "data: " prefix if present
-                    if chunk.startswith('data: '):
-                        json_str = chunk[6:].strip()
-                        if json_str and json_str != '[DONE]':
-                            data = json.loads(json_str)
-                            if 'choices' in data and data['choices']:
-                                content = data['choices'][0].get('delta', {}).get('content', '')
-                                if content:
-                                    collected_content.append(content)
-                                    logger.debug("### PASSTHROUGH: Extracted content: %s", repr(content))
-                except json.JSONDecodeError:
-                    logger.debug("### PASSTHROUGH: Chunk is not JSON: %s", repr(chunk[:100]))
-                except Exception as e:
-                    logger.debug("### PASSTHROUGH: Error parsing chunk: %s", e)
-                
-                yield f"{chunk}\n"
-                
-        except requests.exceptions.ReadTimeout as exc:
-            logger.warning("### PASSTHROUGH: Stream timed out: %s", exc)
-        except requests.exceptions.RequestException as exc:
-            logger.error("### PASSTHROUGH: Stream failed: %s", exc, exc_info=True)
-        except Exception as exc:
-            logger.exception("### PASSTHROUGH: Unexpected stream error: %s", exc)
-        finally:
-            # Log summary of collected content
-            if collected_content:
-                full_content = ''.join(collected_content)
-                logger.info("### PASSTHROUGH: Stream completed. Total chunks: %d", chunk_count)
-                logger.info("### PASSTHROUGH: Collected content length: %d", len(full_content))
-                logger.info("### PASSTHROUGH: Final content: %s", repr(full_content[:500]))
-                logger.info("### PASSTHROUGH: Contains Chinese: %s", any('\u4e00' <= char <= '\u9fff' for char in full_content))
+
+    def generate():
+        for raw in response:
+            if isinstance(raw, bytes):
+                raw = raw.decode('utf-8', errors='replace')
+
+            # llama.cpp sends lines like:  data: {"choices":[{"delta":{"content":"你好"}}]}
+            if raw.startswith("data: "):
+                payload = raw[6:].strip()
+                if payload and payload != "[DONE]":
+                    try:
+                        data = json.loads(payload)          # parse
+                        # fix content field in-place
+                        for c in data.get("choices", []):
+                            if "delta" in c and "content" in c["delta"]:
+                                c["delta"]["content"] = (
+                                    c["delta"]["content"]
+                                    .encode('latin1')      # undo llama.cpp mistake
+                                    .decode('utf-8', errors='replace')
+                                )
+                            if "message" in c and "content" in c["message"]:
+                                c["message"]["content"] = (
+                                    c["message"]["content"]
+                                    .encode('latin1')
+                                    .decode('utf-8', errors='replace')
+                                )
+                        raw = "data: " + json.dumps(data, ensure_ascii=False)
+                    except Exception:
+                        pass                                # leave line untouched
+            yield raw + "\n"
 
     return current_app.response_class(
-        passthrough_stream(),
-        mimetype='text/event-stream; charset=utf-8'
-    )
+        generate(),
+        mimetype="text/event-stream; charset=utf-8"
+    )    
+
 
 
 def _handle_passthrough_non_streaming(response, model):
