@@ -14,8 +14,6 @@ def _handle_passthrough_request(data, messages, model, stream):
     """
     Handle OpenAI-compatible passthrough requests with tooling metadata
     """
-    logger.info("### PASSTHROUGH: Starting passthrough request")
-    
     try:
         processor_router = current_app.config['processor_router']
         ai_provider = getattr(processor_router, "ai_provider", None)
@@ -40,15 +38,14 @@ def _handle_passthrough_request(data, messages, model, stream):
     for key in optional_keys:
         if key in data and data[key]:
             forward_options[key] = data[key]
-            logger.debug("### PASSTHROUGH: Including %s in forward options", key)
 
-    logger.info("### PASSTHROUGH: Calling AI provider, stream=%s, model=%s", stream, model)
-    debug_payload = {
+    # Log request sent to llamacpp
+    request_payload = {
         "model": model,
         "messages": messages,
         **forward_options
     }
-    logger.debug("### PASSTHROUGH: Full request payload:\n%s", json.dumps(debug_payload, indent=2, ensure_ascii=False))
+    logger.info("### Sending to llamacpp:\n%s", json.dumps(request_payload, indent=2, ensure_ascii=False))
 
     try:
         response = ai_provider.generate_openai_compatible(
@@ -57,9 +54,6 @@ def _handle_passthrough_request(data, messages, model, stream):
             stream=stream,
             **forward_options
         )
-
-        logger.info("### PASSTHROUGH: AI provider response received")
-        logger.info("### PASSTHROUGH: Response type: %s", type(response))
 
         if stream:
             return _handle_passthrough_streaming(response, model)
@@ -94,7 +88,7 @@ def _handle_passthrough_streaming(response, model):
     This implementation normalises the output to the OpenAI SSE format
     while preserving UTF‑8 correctness.
     """
-    logger.info("### PASSTHROUGH: Handling streaming response")
+    logger.info("### Receiving streaming response from llamacpp")
 
     def generate():
         for raw in response:
@@ -144,23 +138,15 @@ def _handle_passthrough_non_streaming(response, model):
     """
     Handle non-streaming passthrough response with proper UTF-8 encoding
     """
-    logger.info("### PASSTHROUGH: Handling non-streaming response")
-    
     if not isinstance(response, dict):
         logger.warning("### PASSTHROUGH: Unexpected response type: %s", type(response))
         return jsonify({"error": "Unexpected response format from AI provider"}), 500
 
-    logger.info("### PASSTHROUGH: Response keys: %s", list(response.keys()))
-    
-    # Debug log the content
-    if 'choices' in response and response['choices']:
-        content = response['choices'][0].get('message', {}).get('content', '')
-        logger.info("### PASSTHROUGH: Response content preview: %s", repr(content[:200]))
-        logger.info("### PASSTHROUGH: Content contains Chinese chars: %s", any('\u4e00' <= char <= '\u9fff' for char in content))
+    # Log response received from llamacpp
+    logger.info("### Received from llamacpp:\n%s", json.dumps(response, indent=2, ensure_ascii=False))
     
     # Ensure UTF-8 encoding
     json_str = json.dumps(response, ensure_ascii=False)
-    logger.info("### PASSTHROUGH: JSON response length: %d", len(json_str))
     
     return Response(
         json_str,
@@ -177,13 +163,11 @@ def _should_passthrough(data, messages):
     
     # Check for tooling metadata in request data
     if any(key in data and data[key] for key in passthrough_keys):
-        logger.debug("### PASSTHROUGH: Triggered by request data keys")
         return True
     
     # Check for tool_calls in messages
     for message in messages:
         if isinstance(message, dict) and message.get('tool_calls'):
-            logger.debug("### PASSTHROUGH: Triggered by tool_calls in messages")
             return True
     
     return False
@@ -204,8 +188,6 @@ def chat_completions():
         return _handle_passthrough_request(data, messages, model, stream)
 
     # PATTERN DETECTION PATH (your existing code)
-    logger.info("### PATTERN: Using pattern detection path")
-    
     # Get the last user message
     user_message = ""
     for message in reversed(messages):
@@ -238,8 +220,6 @@ def chat_completions():
             if '### processor:' in content.lower():
                 historical_pattern_data = pattern_detector.detect_pattern(content)
                 if historical_pattern_data and historical_pattern_data.get('processor'):
-                    logger.info(f"### PATTERN: Found processor in history: {historical_pattern_data.get('processor')}")
-                    
                     if not pattern_data:
                         pattern_data = {
                             'processor': historical_pattern_data.get('processor'),
@@ -265,9 +245,6 @@ def chat_completions():
         }
     else:
         pattern_data = {'pattern': 'custom', 'prompt': user_message}
-    
-    logger.info(f"### PATTERN: Request details - Model: {model}, Stream: {stream}")
-    logger.info(f"### PATTERN: User message preview: {user_message[:100]}...")
 
     try:
         processor_router = current_app.config['processor_router']
