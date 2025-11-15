@@ -86,25 +86,37 @@ def _handle_passthrough_request(data, messages, model, stream):
     
 
 def _handle_passthrough_streaming(response, model):
+    """
+    Handle streaming responses from any AI provider.
+
+    The Ollama and LlamaCPP providers both return an iterator of lines
+    (bytes or str).  Some future providers may yield JSON objects directly.
+    This implementation normalises the output to the OpenAI SSE format
+    while preserving UTF‑8 correctness.
+    """
     logger.info("### PASSTHROUGH: Handling streaming response")
 
     def generate():
         for raw in response:
+            # Normalise bytes to str
             if isinstance(raw, bytes):
                 raw = raw.decode('utf-8', errors='replace')
+            # Normalise dicts to JSON lines (some providers may yield dicts)
+            elif isinstance(raw, dict):
+                raw = json.dumps(raw, ensure_ascii=False)
 
-            # llama.cpp sends lines like:  data: {"choices":[{"delta":{"content":"你好"}}]}
-            if raw.startswith("data: "):
+            # LlamaCPP streams lines prefixed with "data: "
+            if isinstance(raw, str) and raw.startswith("data: "):
                 payload = raw[6:].strip()
                 if payload and payload != "[DONE]":
                     try:
-                        data = json.loads(payload)          # parse
-                        # fix content field in-place
+                        data = json.loads(payload)          # parse JSON payload
+                        # Fix known latin‑1 encoding issue from LlamaCPP
                         for c in data.get("choices", []):
                             if "delta" in c and "content" in c["delta"]:
                                 c["delta"]["content"] = (
                                     c["delta"]["content"]
-                                    .encode('latin1')      # undo llama.cpp mistake
+                                    .encode('latin1')
                                     .decode('utf-8', errors='replace')
                                 )
                             if "message" in c and "content" in c["message"]:
@@ -115,13 +127,16 @@ def _handle_passthrough_streaming(response, model):
                                 )
                         raw = "data: " + json.dumps(data, ensure_ascii=False)
                     except Exception:
-                        pass                                # leave line untouched
+                        # If parsing fails, keep the original line
+                        pass
+            # Ensure each chunk ends with a newline as required by SSE
             yield raw + "\n"
 
+    # Return a Flask streaming response with proper SSE MIME type
     return current_app.response_class(
         generate(),
         mimetype="text/event-stream; charset=utf-8"
-    )    
+    )
 
 
 
