@@ -29,6 +29,11 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
             - FLASK_DEBUG: Flask debug mode
             - FLASK_HOST: Flask host to bind to
             - FLASK_PORT: Flask port to bind to
+            - VERBOSE: Enable verbose/debug logging (true/false)
+            - SHOW_INFO: Enable info-level logging (true/false)
+            - JSON_AS_ASCII: JSON encoding ASCII mode (true/false, deprecated)
+            - JSONIFY_MIMETYPE: MIME type for JSON responses
+            - JSON_ENSURE_ASCII: Ensure ASCII in JSON encoding (true/false)
     """
     try:
         # Load environment variables
@@ -142,6 +147,13 @@ def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
         
         # Logging Configuration
         cfg["LOG_LEVEL"] = os.getenv("LOG_LEVEL", "INFO").upper()
+        cfg["VERBOSE"] = os.getenv("VERBOSE", "false").lower() == "true"
+        cfg["SHOW_INFO"] = os.getenv("SHOW_INFO", "false").lower() == "true"
+        
+        # JSON Configuration
+        cfg["JSON_AS_ASCII"] = os.getenv("JSON_AS_ASCII", "false").lower() == "true"
+        cfg["JSONIFY_MIMETYPE"] = os.getenv("JSONIFY_MIMETYPE", "application/json; charset=utf-8")
+        cfg["JSON_ENSURE_ASCII"] = os.getenv("JSON_ENSURE_ASCII", "false").lower() == "true"
         
         # Optional: Model-specific configurations
         cfg["MAX_TOKENS"] = int(os.getenv("MAX_TOKENS", "4096"))
@@ -192,6 +204,11 @@ def get_default_config() -> Dict[str, Any]:
         "FLASK_HOST": "0.0.0.0",
         "FLASK_PORT": 5000,
         "LOG_LEVEL": "INFO",
+        "VERBOSE": False,
+        "SHOW_INFO": False,
+        "JSON_AS_ASCII": False,
+        "JSONIFY_MIMETYPE": "application/json; charset=utf-8",
+        "JSON_ENSURE_ASCII": False,
         "MAX_TOKENS": 4096,
         "DEFAULT_TEMPERATURE": 0.1,
         "DEFAULT_TOP_P": 0.9,

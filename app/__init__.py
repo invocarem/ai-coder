@@ -6,10 +6,13 @@ import json
 
 def create_app():
     app = Flask(__name__)
-
-    # Determine logging level based on VERBOSE and SHOW_INFO environment variables
-    VERBOSE = os.getenv("VERBOSE", "false").lower() == "true"
-    SHOW_INFO = os.getenv("SHOW_INFO", "false").lower() == "true"
+    
+    # Load configuration (this also loads .env file)
+    config = load_config()
+    
+    # Determine logging level based on VERBOSE and SHOW_INFO from config
+    VERBOSE = config.get("VERBOSE", False)
+    SHOW_INFO = config.get("SHOW_INFO", False)
 
     if VERBOSE:
         log_level = logging.DEBUG
@@ -22,9 +25,6 @@ def create_app():
         level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
-    # Load configuration
-    config = load_config()
 
     stream_log_path = config.get("STREAM_DEBUG_LOG") or os.getenv("STREAM_DEBUG_LOG")
     if stream_log_path:
@@ -53,16 +53,11 @@ def create_app():
     # Also store as direct attribute for backup
     app.processor_router = processor_router
     
-    app.config['JSON_AS_ASCII'] = False               # keep Unicode characters
-    app.config['JSONIFY_MIMETYPE'] = 'application/json; charset=utf-8'
+    # Configure JSON encoding from config
+    app.config['JSON_AS_ASCII'] = config.get("JSON_AS_ASCII", False)
+    app.config['JSONIFY_MIMETYPE'] = config.get("JSONIFY_MIMETYPE", "application/json; charset=utf-8")
     app.json_encoder = json.JSONEncoder  # type: ignore
-    app.json.ensure_ascii = False  # type: ignore
-
-
-
-    logging.getLogger('app.routes').setLevel(logging.DEBUG) 
-    logging.getLogger('app.processors').setLevel(logging.DEBUG)
-    logging.getLogger('app.utils').setLevel(logging.DEBUG)
+    app.json.ensure_ascii = config.get("JSON_ENSURE_ASCII", False)  # type: ignore
 
     # Register blueprints
     from .routes.api_routes import api_bp
