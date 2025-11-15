@@ -43,6 +43,12 @@ def _handle_passthrough_request(data, messages, model, stream):
             logger.debug("### PASSTHROUGH: Including %s in forward options", key)
 
     logger.info("### PASSTHROUGH: Calling AI provider, stream=%s, model=%s", stream, model)
+    debug_payload = {
+        "model": model,
+        "messages": messages,
+        **forward_options
+    }
+    logger.debug("### PASSTHROUGH: Full request payload:\n%s", json.dumps(debug_payload, indent=2, ensure_ascii=False))
 
     try:
         response = ai_provider.generate_openai_compatible(
