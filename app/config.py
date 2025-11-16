@@ -3,9 +3,148 @@ import os
 import logging
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
+from dataclasses import dataclass, field
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------
+# Configuration dataclass
+# ----------------------------------------------------------------------
+@dataclass
+class Settings:
+    """Typed configuration loaded from environment variables."""
+    # Provider configuration
+    AI_PROVIDER: str = field(default_factory=lambda: os.getenv("AI_PROVIDER", "ollama").strip().lower())
+    OLLAMA_BASE_URL: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip('/'))
+    LLAMACPP_BASE_URL: str = field(default_factory=lambda: os.getenv("LLAMACPP_BASE_URL", "http://localhost:8080").rstrip('/'))
+    OPENAI_BASE_URL: str = field(default_factory=lambda: os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip('/'))
+    OPENAI_API_KEY: Optional[str] = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
+    MISTRAL_BASE_URL: str = field(default_factory=lambda: os.getenv("MISTRAL_BASE_URL", "https://api.mistral.ai/v1").rstrip('/'))
+    MISTRAL_API_KEY: Optional[str] = field(default_factory=lambda: os.getenv("MISTRAL_API_KEY"))
+
+    # Model configuration
+    DEFAULT_MODEL: str = field(init=False)
+
+    # Request timeout
+    REQUEST_TIMEOUT: float = field(default=120.0)
+
+    # Flask configuration
+    FLASK_ENV: str = field(default_factory=lambda: os.getenv("FLASK_ENV", "development"))
+    FLASK_DEBUG: bool = field(default_factory=lambda: os.getenv("FLASK_DEBUG", "true").lower() == "true")
+    FLASK_HOST: str = field(default_factory=lambda: os.getenv("FLASK_HOST", "0.0.0.0"))
+    FLASK_PORT: int = field(default_factory=lambda: int(os.getenv("FLASK_PORT", "5000")))
+
+    # Logging configuration
+    LOG_LEVEL: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO").upper())
+    VERBOSE: bool = field(default_factory=lambda: os.getenv("VERBOSE", "false").lower() == "true")
+    SHOW_INFO: bool = field(default_factory=lambda: os.getenv("SHOW_INFO", "false").lower() == "true")
+    STREAM_DEBUG_LOG: Optional[str] = field(default_factory=lambda: os.getenv("STREAM_DEBUG_LOG"))
+
+    # JSON configuration
+    JSON_AS_ASCII: bool = field(default_factory=lambda: os.getenv("JSON_AS_ASCII", "false").lower() == "true")
+    JSONIFY_MIMETYPE: str = field(default_factory=lambda: os.getenv("JSONIFY_MIMETYPE", "application/json; charset=utf-8"))
+    JSON_ENSURE_ASCII: bool = field(default_factory=lambda: os.getenv("JSON_ENSURE_ASCII", "false").lower() == "true")
+
+    # Miscellaneous defaults
+    MAX_TOKENS: int = field(default_factory=lambda: int(os.getenv("MAX_TOKENS", "4096")))
+    DEFAULT_TEMPERATURE: float = field(default_factory=lambda: float(os.getenv("DEFAULT_TEMPERATURE", "0.1")))
+    DEFAULT_TOP_P: float = field(default_factory=lambda: float(os.getenv("DEFAULT_TOP_P", "0.9")))
+    API_KEY: Optional[str] = field(default_factory=lambda: os.getenv("API_KEY"))
+    CASSANDRA_HOSTS: str = field(default_factory=lambda: os.getenv("CASSANDRA_HOSTS", "127.0.0.1"))
+    CASSANDRA_PORT: int = field(default_factory=lambda: int(os.getenv("CASSANDRA_PORT", "9042")))
+
+    # Provider‑specific defaults (filled after init)
+    def __post_init__(self):
+        # Resolve default model based on provider
+        provider_defaults = {
+            "ollama": "deepseek-coder:6.7b",
+            "openai": "gpt-4o-mini",
+            "mistral": "mistral-small-latest",
+            "llamacpp": "gpt-oss-120b",
+            "llama.cpp": "gpt-oss-120b",
+            "llama": "gpt-oss-120b",
+        }
+        # Environment variable priority list
+        priority = ["DEFAULT_MODEL"]
+        if self.AI_PROVIDER == "openai":
+            priority.extend(["OPENAI_MODEL", "OPENAI_DEFAULT_MODEL"])
+        elif self.AI_PROVIDER == "mistral":
+            priority.extend(["MISTRAL_MODEL", "MISTRAL_DEFAULT_MODEL"])
+        elif self.AI_PROVIDER in ("llamacpp", "llama.cpp", "llama"):
+            priority.extend(["LLAMACPP_MODEL", "LLAMACPP_DEFAULT_MODEL"])
+        else:
+            priority.extend(["OLLAMA_MODEL", "OLLAMA_DEFAULT_MODEL"])
+
+        for key in priority:
+            val = os.getenv(key)
+            if val:
+                self.DEFAULT_MODEL = val
+                break
+        else:
+            self.DEFAULT_MODEL = provider_defaults.get(self.AI_PROVIDER, "deepseek-coder:6.7b")
+
+        # Resolve request timeout
+        timeout_keys = {
+            "ollama": ["OLLAMA_TIMEOUT", "OLLAMA_REQUEST_TIMEOUT"],
+            "openai": ["OPENAI_TIMEOUT", "OPENAI_REQUEST_TIMEOUT"],
+            "mistral": ["MISTRAL_TIMEOUT", "MISTRAL_REQUEST_TIMEOUT"],
+            "llamacpp": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"],
+            "llama.cpp": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"],
+            "llama": ["LLAMACPP_TIMEOUT", "LLAMACPP_REQUEST_TIMEOUT", "LLAMA_CPP_TIMEOUT"],
+        }.get(self.AI_PROVIDER, [])
+        for key in timeout_keys:
+            val = os.getenv(key)
+            if val:
+                try:
+                    self.REQUEST_TIMEOUT = float(val)
+                except ValueError:
+                    pass
+                break
+        # Fallback to generic REQUEST_TIMEOUT
+        if self.REQUEST_TIMEOUT == 120.0:
+            generic = os.getenv("REQUEST_TIMEOUT")
+            if generic:
+                try:
+                    self.REQUEST_TIMEOUT = float(generic)
+                except ValueError:
+                    pass
+
+# ----------------------------------------------------------------------
+# Logging helper
+# ----------------------------------------------------------------------
+def setup_logging(cfg: dict) -> None:
+    """
+    Configure root logging based on configuration dict.
+    Handles console level, optional stream file handler and log format.
+    """
+    verbose = cfg.get("VERBOSE", False)
+    show_info = cfg.get("SHOW_INFO", False)
+
+    if verbose:
+        level = logging.DEBUG
+    elif show_info:
+        level = logging.INFO
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    stream_path = cfg.get("STREAM_DEBUG_LOG") or os.getenv("STREAM_DEBUG_LOG")
+    if stream_path:
+        logger = logging.getLogger("stream_debug")
+        abs_path = os.path.abspath(stream_path)
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == abs_path
+                   for h in logger.handlers):
+            fh = logging.FileHandler(abs_path, encoding="utf-8")
+            fh.setLevel(logging.INFO)
+            fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            logger.addHandler(fh)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
 
 def load_config(env_path: Optional[str] = None) -> Dict[str, Any]:
     """

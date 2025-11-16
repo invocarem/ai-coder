@@ -10,34 +10,9 @@ def create_app():
     # Load configuration (this also loads .env file)
     config = load_config()
     
-    # Determine logging level based on VERBOSE and SHOW_INFO from config
-    VERBOSE = config.get("VERBOSE", False)
-    SHOW_INFO = config.get("SHOW_INFO", False)
-
-    if VERBOSE:
-        log_level = logging.DEBUG
-    elif SHOW_INFO:
-        log_level = logging.INFO
-    else:
-        log_level = logging.WARNING
-
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
-    stream_log_path = config.get("STREAM_DEBUG_LOG") or os.getenv("STREAM_DEBUG_LOG")
-    if stream_log_path:
-        stream_logger = logging.getLogger("stream_debug")
-        abs_path = os.path.abspath(stream_log_path)
-        if not any(isinstance(handler, logging.FileHandler) and handler.baseFilename == abs_path
-                   for handler in stream_logger.handlers):
-            file_handler = logging.FileHandler(abs_path, encoding="utf-8")
-            file_handler.setLevel(logging.INFO)
-            file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-            stream_logger.addHandler(file_handler)
-        stream_logger.setLevel(logging.INFO)
-        stream_logger.propagate = False
+    # Configure logging using the new helper
+    from .config import setup_logging
+    setup_logging(config)
 
     from app.processors.processor_router import ProcessorRouter
     processor_router = ProcessorRouter(config)
