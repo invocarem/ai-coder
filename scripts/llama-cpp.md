@@ -11,7 +11,8 @@ git clone https://github.com/ggerganov/llama.cpp
 ```
 mkdir build && cd build
 sudo apt install libcurl4-openssl-dev
-cmake .. -DLLAMA_CUDA=ON -DCMAKE_BUILD_TYPE=Release
+cmake .. -B llama.cpp/build \
+    -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON -DLLAMA_CURL=ON
 cmake --build . --clean-first --config Release -j$(nproc)
 
 ###
