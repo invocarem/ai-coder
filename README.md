@@ -660,3 +660,10 @@ curl -X POST http://localhost:5000/api/query_psalm \
     "model": "mistral:latest"
   }'
 ``` 
+
+
+### build and run whitaker-mcp
+
+```
+docker compose up --build -d whitaker-mcp
+```

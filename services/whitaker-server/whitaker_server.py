@@ -1,236 +1,167 @@
-from flask import Flask, request, jsonify
-import subprocess
+#!/usr/bin/env python3
+"""
+Whitaker’s Words as an MCP server.
+Usage:
+    python whitaker_server.py           # stdio transport (default for CLINE)
+    python whitaker_server.py --sse     # SSE transport (for web demos)
+"""
+
+import json
 import logging
 import os
 import re
+import subprocess
+import argparse
+from typing import Any, Dict, List, Optional
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.server.sse import SseServerTransport
+from mcp.types import Tool, TextContent
 
-app = Flask(__name__)
+# ------------------------------------------------------------------
+# 1.  Existing Whitaker helpers (unchanged)
+# ------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("whitaker-mcp")
 
-def call_whitaker_cli(word: str) -> str:
-    """Call the actual Whitaker CLI tool"""
+WHITAKER_BIN = "/opt/whitakers-words/bin/words"
+WHITAKER_DIR = "/opt/whitakers-words"
+
+def call_whitaker(word: str) -> str:
+    """Call the native Words binary.  Same code you already had."""
+    if not os.path.isfile(WHITAKER_BIN):
+        return f"Error: Whitaker not found at {WHITAKER_BIN}"
     try:
-        # Whitaker words command - built in this container
-        whitaker_path = "/opt/whitakers-words/bin/words"
-        whitaker_dir = "/opt/whitakers-words"  # Directory containing dictionary data files
-        
-        # Check if Whitaker is available
-        if not os.path.exists(whitaker_path):
-            return f"Error: Whitaker not found at {whitaker_path}"
-        
-        logger.info(f"Calling Whitaker for word: '{word}'")
-        
-        # Run from the whitaker directory so it can find dictionary data files
-        result = subprocess.run(
-            [whitaker_path, word],
-            capture_output=True, 
-            text=True, 
+        logger.debug("Calling Whitaker for %r", word)
+        proc = subprocess.run(
+            [WHITAKER_BIN, word],
+            capture_output=True,
+            text=True,
             timeout=30,
-            cwd=whitaker_dir  # Set working directory to find dictionary files
+            cwd=WHITAKER_DIR,
         )
-        
-        if result.returncode == 0:
-            logger.info(f"Whitaker analysis successful for '{word}'")
-            return result.stdout
-        else:
-            logger.error(f"Whitaker failed for '{word}': {result.stderr}")
-            return f"Error: {result.stderr}"
-            
+        return proc.stdout if proc.returncode == 0 else f"Error: {proc.stderr}"
     except subprocess.TimeoutExpired:
-        logger.error(f"Whitaker timeout for '{word}'")
         return "Error: Analysis timed out"
-    except Exception as e:
-        logger.error(f"Unexpected error for '{word}': {e}")
-        return f"Error: {str(e)}"
+    except Exception as exc:
+        return f"Error: {exc}"
 
-def parse_whitaker_output(output: str) -> dict:
-    """Parse Whitaker's output into structured data"""
+def parse_wh_output(output: str) -> Dict[str, Any]:
+    """Very small heuristic parser.  Expand as you like."""
     if output.startswith("Error:"):
         return {"error": output}
-    
-    lines = [line.strip() for line in output.split('\n') if line.strip()]
-    
-    # Basic parsing - you can enhance this based on Whitaker's actual output format
-    parsed_data = {
+    lines = [L.strip() for L in output.splitlines() if L.strip()]
+    return {
         "raw_output": output,
         "lines": lines,
-        "word_forms": [],
-        "definitions": []
+        "word_forms": [L for L in lines if re.match(r"^\w+,\s+\w+", L)],
+        "definitions": [L for L in lines if L.startswith("(") or ";" in L],
     }
-    
-    # Simple heuristic parsing (adjust based on actual Whitaker output)
-    for line in lines:
-        if re.match(r'^\w+,\s+\w+', line):  # Likely a word form line
-            parsed_data["word_forms"].append(line)
-        elif line.startswith('(') or ';' in line:  # Likely definitions/notes
-            parsed_data["definitions"].append(line)
-    
-    return parsed_data
 
-@app.route('/health', methods=['GET'])
-def health():
-    """Health check endpoint"""
-    # Test if Whitaker is accessible
-    test_result = call_whitaker_cli("test")
-    if "Error:" in test_result:
-        return jsonify({
-            "status": "unhealthy", 
-            "service": "whitaker-server",
-            "error": "Whitaker CLI not accessible"
-        }), 503
-    
-    return jsonify({
-        "status": "healthy", 
-        "service": "whitaker-server",
-        "timestamp": __import__('datetime').datetime.now().isoformat()
-    })
+# ------------------------------------------------------------------
+# 2.  MCP server setup
+# ------------------------------------------------------------------
+app = Server("whitaker-latin")
 
-@app.route('/analyze', methods=['POST'])
-def analyze_word():
-    """Analyze a single Latin word"""
-    data = request.get_json()
-    
-    if not data or 'word' not in data:
-        return jsonify({"error": "No word provided in JSON body"}), 400
-    
-    word = data.get('word', '').strip()
-    language = data.get('language', 'la')
-    
-    if not word:
-        return jsonify({"error": "Empty word provided"}), 400
-    
-    if language != 'la':
-        return jsonify({"error": "Only Latin (la) language is supported"}), 400
-    
-    output = call_whitaker_cli(word)
-    parsed = parse_whitaker_output(output)
-    
-    response = {
-        "word": word,
-        "language": language,
-        "analysis": parsed
-    }
-    
-    logger.info(f"Processed analysis for '{word}'")
-    return jsonify(response)
+@app.list_tools()
+async def list_tools() -> List[Tool]:
+    return [
+        Tool(
+            name="analyze_latin",
+            description="Morphologically analyse a single Latin word.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "word": {"type": "string", "description": "Latin word to analyse"},
+                },
+                "required": ["word"],
+            },
+        ),
+        Tool(
+            name="analyze_latin_batch",
+            description="Morphologically analyse many Latin words at once.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "words": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of Latin words",
+                    }
+                },
+                "required": ["words"],
+            },
+        ),
+        Tool(
+            name="analyze_latin_text",
+            description="Tokenise a passage and analyse each unique word.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Latin text passage"},
+                },
+                "required": ["text"],
+            },
+        ),
+    ]
 
-@app.route('/analyze/text', methods=['POST'])
-def analyze_text():
-    """Analyze a text passage"""
-    data = request.get_json()
-    
-    if not data or 'text' not in data:
-        return jsonify({"error": "No text provided in JSON body"}), 400
-    
-    text = data.get('text', '').strip()
-    language = data.get('language', 'la')
-    
-    if not text:
-        return jsonify({"error": "Empty text provided"}), 400
-    
-    if language != 'la':
-        return jsonify({"error": "Only Latin (la) language is supported"}), 400
-    
-    # Extract Latin words (basic tokenization)
-    latin_words = re.findall(r'\b[a-zA-Z]+\b', text)
-    latin_words = [word.lower() for word in latin_words if len(word) > 1]
-    
-    # Analyze each unique word
-    unique_words = list(set(latin_words))
-    results = {}
-    
-    for word in unique_words:
-        output = call_whitaker_cli(word)
-        parsed = parse_whitaker_output(output)
-        results[word] = parsed
-    
-    response = {
-        "text": text,
-        "language": language,
-        "unique_words_analyzed": len(unique_words),
-        "total_words": len(latin_words),
-        "results": results
-    }
-    
-    logger.info(f"Processed text analysis: {len(unique_words)} unique words")
-    return jsonify(response)
+@app.call_tool()
+async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Route MCP tool calls to Whitaker."""
+    if name == "analyze_latin":
+        word = arguments["word"].strip().lower()
+        out = call_whitaker(word)
+        parsed = parse_wh_output(out)
+        return [TextContent(type="text", text=json.dumps(parsed, ensure_ascii=False, indent=2))]
 
-@app.route('/analyze/batch', methods=['POST'])
-def analyze_batch():
-    """Analyze multiple words in batch"""
-    data = request.get_json()
-    
-    if not data or 'words' not in data:
-        return jsonify({"error": "No words array provided in JSON body"}), 400
-    
-    words = data.get('words', [])
-    language = data.get('language', 'la')
-    
-    if not isinstance(words, list):
-        return jsonify({"error": "Words must be provided as an array"}), 400
-    
-    if not words:
-        return jsonify({"error": "Empty words array provided"}), 400
-    
-    if language != 'la':
-        return jsonify({"error": "Only Latin (la) language is supported"}), 400
-    
-    results = {}
-    
-    for word in words:
-        if isinstance(word, str) and word.strip():
-            clean_word = word.strip().lower()
-            output = call_whitaker_cli(clean_word)
-            parsed = parse_whitaker_output(output)
-            results[clean_word] = parsed
-    
-    response = {
-        "batch_size": len(words),
-        "words_processed": len(results),
-        "language": language,
-        "results": results
-    }
-    
-    logger.info(f"Processed batch analysis: {len(results)} words")
-    return jsonify(response)
+    if name == "analyze_latin_batch":
+        words = [w.strip().lower() for w in arguments["words"] if w.strip()]
+        results = {w: parse_wh_output(call_whitaker(w)) for w in words}
+        return [TextContent(type="text", text=json.dumps(results, ensure_ascii=False, indent=2))]
 
-@app.route('/dictionary/<word>', methods=['GET'])
-def get_dictionary_entry(word):
-    """Get dictionary entry for a word"""
-    if not word or not word.strip():
-        return jsonify({"error": "No word provided"}), 400
-    
-    clean_word = word.strip().lower()
-    output = call_whitaker_cli(clean_word)
-    parsed = parse_whitaker_output(output)
-    
-    response = {
-        "word": clean_word,
-        "entry": parsed
-    }
-    
-    return jsonify(response)
-
-@app.route('/info', methods=['GET'])
-def get_info():
-    """Get service information"""
-    return jsonify({
-        "service": "Whitaker HTTP Wrapper",
-        "version": "1.0",
-        "description": "HTTP API wrapper for Whitaker's Words Latin dictionary",
-        "endpoints": {
-            "health": {"method": "GET", "path": "/health"},
-            "analyze_word": {"method": "POST", "path": "/analyze"},
-            "analyze_text": {"method": "POST", "path": "/analyze/text"},
-            "analyze_batch": {"method": "POST", "path": "/analyze/batch"},
-            "dictionary": {"method": "GET", "path": "/dictionary/<word>"},
-            "info": {"method": "GET", "path": "/info"}
+    if name == "analyze_latin_text":
+        text = arguments["text"]
+        tokens = re.findall(r"\b[a-zA-Z]+\b", text)
+        tokens = [t.lower() for t in tokens if len(t) > 1]
+        unique = list(set(tokens))
+        results = {w: parse_wh_output(call_whitaker(w)) for w in unique}
+        summary = {
+            "text": text,
+            "total_tokens": len(tokens),
+            "unique_tokens": len(unique),
+            "analyses": results,
         }
-    })
+        return [TextContent(type="text", text=json.dumps(summary, ensure_ascii=False, indent=2))]
 
-if __name__ == '__main__':
-    logger.info("Starting Whitaker HTTP Server...")
-    app.run(host='0.0.0.0', port=9090, debug=False)
+    raise ValueError(f"Unknown tool: {name}")
+
+# ------------------------------------------------------------------
+# 3.  Entry-point – choose stdio (CLINE) or SSE
+# ------------------------------------------------------------------
+async def main_stdio():
+    async with stdio_server() as (read_stream, write_stream):
+        await app.run(read_stream, write_stream, app.create_initialization_options())
+
+async def main_sse(host: str = "0.0.0.0", port: int = 9090):
+    from mcp.server.sse import SseServerTransport
+    from anyio import run as anyio_run
+    sse = SseServerTransport(host, port)
+    await sse.serve(app)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Whitaker MCP server")
+    parser.add_argument("--sse", action="store_true", help="Use SSE transport instead of stdio")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=9090)
+    args = parser.parse_args()
+
+    if args.sse:
+        import asyncio
+        asyncio.run(main_sse(args.host, args.port))
+    else:
+        import asyncio
+        asyncio.run(main_stdio())

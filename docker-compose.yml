@@ -1,5 +1,6 @@
 services:
   cassandra:
+    container_name: ai-coder-cassandra
     image: cassandra:4.1
     ports:
       - "9042:9042"
@@ -14,20 +15,16 @@ services:
       timeout: 10s
       retries: 5
 
-  whitaker-server:
+  whitaker-mcp:                       # renamed for clarity
+    container_name: ai-coder-whitaker
     build:
-      context: ./services/whitaker-server
+      context: ./services/whitaker-server   # same folder, new Dockerfile
       dockerfile: Dockerfile.whitaker-server
-    ports:
-      - "9090:9090"
-    environment:
-      - FLASK_ENV=production
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    stdin_open: true                  # keep stdin open so MCP can talk
+    tty: true          
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    restart: "no"
 
 volumes:
   cassandra_data:
