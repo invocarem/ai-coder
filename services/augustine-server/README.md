@@ -13,11 +13,7 @@ docker build -t augustine-mcp -f services/augustine-server/Dockerfile .
 ## Run the container
 
 ```bash
-docker run -d \
-  --name augustine-mcp \
-  -p 9042:9042 \   # Cassandra CQL port
-  -p 8002:8002 \   # FastAPI API port
-  augustine-mcp
+docker run -d --name augustine-mcp -p 9042:9042 -p 8002:8002 augustine-mcp
 ```
 
 The container will:
