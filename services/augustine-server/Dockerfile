@@ -1,11 +1,11 @@
-FROM cassandra:4.1
+FROM python:3.11-slim
 
-# Install Python 3 and pip (Cassandra image is Debian‑based)
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip && \
+    apt-get install -y ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Create a non‑root user for the FastAPI server
+# Create a non-root user for the MCP server
 RUN useradd -ms /bin/bash apiuser
 
 WORKDIR /app
@@ -13,14 +13,11 @@ WORKDIR /app
 # Copy the entire project into the image
 COPY . /app
 
-# Install Python dependencies (including FastAPI, cassandra-driver, etc.)
-RUN pip3 install --no-cache-dir -r services/augustine-server/requirements.txt
+# Install Python dependencies (mcp only)
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Ensure the start script is executable
 RUN chmod +x /app/services/augustine-server/start.sh
 
-# Expose ports: 9042 for Cassandra, 8002 for the API
-EXPOSE 9042 8002
-
-# Launch Cassandra and then the FastAPI server
+# Launch the MCP server via stdio
 ENTRYPOINT ["/app/services/augustine-server/start.sh"]

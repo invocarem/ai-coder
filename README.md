@@ -666,4 +666,7 @@ curl -X POST http://localhost:5000/api/query_psalm \
 
 ```
 docker compose up --build -d whitaker-mcp
+
+docker rm -f $(docker ps -aq --filter ancestor=whitaker-mcp)
+docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```

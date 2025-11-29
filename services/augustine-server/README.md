@@ -1,7 +1,7 @@
-# Augustine MCP Server (Cassandra + FastAPI)
+# Augustine MCP Server (Cassandra + MCP)
 
-This Docker image bundles a Cassandra database **and** a FastAPI service that wraps the existing `PsalmRAGProcessor`.  
-The container starts Cassandra, waits until it is ready, then launches the API.
+This is a standalone MCP server that connects remotely to a Cassandra database.  
+It is designed to be deployed alongside Cassandra using Docker Compose.
 
 ## Build the image
 
@@ -10,26 +10,26 @@ The container starts Cassandra, waits until it is ready, then launches the API.
 docker build -t augustine-mcp -f services/augustine-server/Dockerfile .
 ```
 
-## Run the container
+## Run the service (recommended with docker-compose)
 
 ```bash
-docker run -d --name augustine-mcp -p 9042:9042 -p 8002:8002 augustine-mcp
+# Start both Cassandra and Augustine MCP server
+docker-compose up
 ```
 
-The container will:
+This will:
+1. Start `cassandra-server` (listening on port 9042)
+2. Start `augustine-mcp` (MCP server via stdio, no HTTP port exposed)
+3. Connect `augustine-mcp` to Cassandra using `CASSANDRA_HOST=cassandra-server`
 
-1. Start Cassandra (listening on port **9042**).  
-2. Wait until the CQL service is healthy.  
-3. Launch the FastAPI server on **0.0.0.0:8002**.
+## MCP Tools
 
-## API Endpoints
+| Tool Name | Description |
+|----------|-------------|
+| `analyze_psalm` | Process a psalm query using the Augustine RAG processor. Input: `pattern_data`, `model`, `stream` (optional), `original_data` (optional). Returns JSON result. |
+| `get_psalm_health` | Check the health status of the Augustine processor. Returns health information. |
 
-| Method | Path      | Description                                 |
-|--------|-----------|---------------------------------------------|
-| GET    | `/health` | Returns the health check from `PsalmRAGProcessor`. |
-| POST   | `/process`| Body must match the `ProcessRequest` model (see source). Returns the processor’s JSON result. |
-
-### Example `POST /process`
+### Example `analyze_psalm` call (via Cline):
 
 ```json
 {
@@ -46,9 +46,10 @@ The container will:
 
 ## Notes
 
-* The image uses the official `cassandra:4.1` base image, then installs Python 3, `pip`, and all Python dependencies listed in `services/augustine-server/requirements.txt` (FastAPI, uvicorn, cassandra‑driver, etc.).  
-* The `start.sh` script handles the start‑up sequence and runs the FastAPI app as a non‑root user (`apiuser`).  
-* If you need to modify the processor or add additional routes, edit `services/augustine-server/augustine_server.py` and rebuild the image.  
+* The `augustine-mcp` container does **not** include Cassandra — it connects to it remotely via network.
+* The `CASSANDRA_HOST` environment variable (set to `cassandra-server` in docker-compose) configures the connection.
+* Use `docker-compose.yml` to manage the full stack.
+* If you need to modify the processor or add additional tools, edit `services/augustine-server/augustine_server.py` and rebuild the image.
 
 ---  
 

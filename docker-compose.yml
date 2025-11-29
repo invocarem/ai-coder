@@ -1,19 +1,36 @@
+version: '3.8'
+
 services:
-  cassandra:
-    container_name: ai-coder-cassandra
+  cassandra-server:
     image: cassandra:4.1
     ports:
       - "9042:9042"
     environment:
-      - CASSANDRA_BROADCAST_ADDRESS=cassandra #0.0.0.0
-      - CASSANDRA_CLUSTER_NAME=AugustineCluster  # Keep your original name
-    volumes:
-      - cassandra_data:/var/lib/cassandra
-    healthcheck:  # Keep your healthcheck - it's good!
+      - CASSANDRA_CLUSTER_NAME=AugustineCluster
+    healthcheck:
       test: ["CMD", "cqlsh", "-e", "DESCRIBE KEYSPACES"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  augustine-mcp:
+    container_name: ai-coder-augustine-mcp
+    build:
+      context: .
+      dockerfile: services/augustine-server/Dockerfile
+    environment:
+      - CASSANDRA_HOST=cassandra-server
+    depends_on:
+      cassandra-server:
+        condition: service_healthy
+    stdin_open: true                  # keep stdin open so MCP can talk
+    tty: true          
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    restart: "no"    # Optional: expose for SSE if needed later
+    # ports:
+    #   - "9090:9090"
 
   whitaker-mcp:                       # renamed for clarity
     container_name: ai-coder-whitaker
@@ -25,6 +42,3 @@ services:
     stop_signal: SIGINT
     stop_grace_period: 30s
     restart: "no"
-
-volumes:
-  cassandra_data:
