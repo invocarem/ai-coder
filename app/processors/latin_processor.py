@@ -4,7 +4,7 @@ from flask import jsonify, Response
 import json
 import time
 import requests
-from app.config import load_config
+from app.core.config import load_config
 
 logger = logging.getLogger(__name__)
 stream_logger = logging.getLogger("stream_debug")

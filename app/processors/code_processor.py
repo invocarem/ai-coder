@@ -7,7 +7,7 @@ import logging
 from flask import jsonify, Response
 from app.utils.pattern_detector import PatternDetector
 from app.utils.ai_provider import AIProviderFactory
-from app.config import load_config
+from app.core.config import load_config
 
 logger = logging.getLogger(__name__)
 stream_logger = logging.getLogger("stream_debug")
