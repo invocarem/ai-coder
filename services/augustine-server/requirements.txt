@@ -1,1 +1,11 @@
+# MCP server dependency
 mcp
+
+# Core dependencies (Flask-free)
+requests>=2.28.0
+python-dotenv>=1.0.0
+
+# Cassandra database for RAG
+cassandra-driver>=3.28.0
+
+# Note: Flask is explicitly NOT included - this is a standalone MCP server

@@ -23,7 +23,7 @@ from mcp.types import Tool, TextContent
 # Import the existing processor and AI provider utilities
 from app.processors.psalm_rag_processor import PsalmRAGProcessor
 from app.utils.ai_provider import AIProviderFactory
-from app.config import load_config
+from app.core.config import load_config
 
 logger = logging.getLogger("augustine-mcp")
 app = Server("augustine-mcp")
