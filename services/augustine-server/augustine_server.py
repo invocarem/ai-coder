@@ -20,10 +20,11 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-# Import the existing processor and AI provider utilities
-from app.processors.psalm_rag_processor import PsalmRAGProcessor
-from app.utils.ai_provider import AIProviderFactory
 from app.core.config import load_config
+from app.utils.ai_provider import AIProviderFactory
+
+# Import the processor module directly
+import app.processors.psalm_rag_processor as psalm_processor_module
 
 logger = logging.getLogger("augustine-mcp")
 app = Server("augustine-mcp")
@@ -36,7 +37,7 @@ try:
     config = load_config()
     # Create AI provider using factory based on config
     ai_provider = AIProviderFactory.create_provider(config)
-    processor = PsalmRAGProcessor(ai_provider)
+    processor = psalm_processor_module.PsalmRAGProcessor(ai_provider)
 except Exception as e:
     logger.error(f"Failed to initialize processor: {e}")
     raise RuntimeError(f"Processor initialization error: {e}")

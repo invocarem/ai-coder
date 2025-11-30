@@ -9,3 +9,4 @@ python-dotenv>=1.0.0
 cassandra-driver>=3.28.0
 
 # Note: Flask is explicitly NOT included - this is a standalone MCP server
+Flask

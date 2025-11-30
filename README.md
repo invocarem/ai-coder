@@ -675,3 +675,12 @@ docker run -it --rm --network ai-coder_default \
 docker rm -f $(docker ps -aq --filter ancestor=whitaker-mcp)
 docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```
+
+
+### mcp commands
+
+```
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}
+{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+```
