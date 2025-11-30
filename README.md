@@ -662,11 +662,16 @@ curl -X POST http://localhost:5000/api/query_psalm \
 ``` 
 
 
-### build and run whitaker-mcp
+### build and run docker images
 
 ```
-docker compose up --build -d whitaker-mcp
+docker system prune -af
 
+docker compose up --build -d whitaker-mcp
+docker run -it --rm --network ai-coder_default \
+  -e CASSANDRA_HOST=cassandra-server \
+  --entrypoint bash \
+  ai-coder-augustine-mcp
 docker rm -f $(docker ps -aq --filter ancestor=whitaker-mcp)
 docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```

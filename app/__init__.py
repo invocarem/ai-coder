@@ -1,8 +1,8 @@
 from flask import Flask
-from .config import load_config
 import logging
 import os
 import json
+from app.core.config import load_config, setup_logging
 
 def create_app():
     app = Flask(__name__)
@@ -11,7 +11,6 @@ def create_app():
     config = load_config()
     
     # Configure logging using the new helper
-    from .config import setup_logging
     setup_logging(config)
 
     from app.processors.processor_router import ProcessorRouter

@@ -13,8 +13,8 @@ WORKDIR /app
 # Copy the entire project into the image
 COPY . /app
 
-# Install Python dependencies (mcp only)
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Install Python dependencies specifically for Augustine server
+RUN pip3 install --no-cache-dir -r services/augustine-server/requirements.txt
 
 # Ensure the start script is executable
 RUN chmod +x /app/services/augustine-server/start.sh

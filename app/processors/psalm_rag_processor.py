@@ -2,8 +2,7 @@
 import logging
 import json
 import time
-from flask import jsonify, Response
-from app.config import load_config
+from app.core.config import load_config
 from app.rag.simple_cassandra_client import SimpleCassandraClient
 from app.rag.retriever import AugustineRetriever  # Updated!
 
@@ -72,13 +71,13 @@ ANSWER:
                 return self._analyze_psalm_word(pattern_data, model, stream, original_data)
             else:
                 logger.error(f"❌ Unsupported pattern: {pattern}")
-                return jsonify({"error": f"Unsupported pattern: {pattern}"}), 400
+                return {"error": f"Unsupported pattern: {pattern}"}, 400
         except Exception as e:
             logger.error(f"❌ Processor failed in process method: {str(e)}")
             logger.error(f"❌ Pattern data: {pattern_data}")
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return jsonify({"error": f"Processor error: {str(e)}"}), 500
+            return {"error": f"Processor error: {str(e)}"}, 500
     
 
     def _query_psalms(self, pattern_data, model, stream, original_data):
@@ -93,7 +92,7 @@ ANSWER:
             logger.info(f"🔍 DEBUG Available prompt templates: {list(self.prompt_templates.keys())}")
             
             if not psalm_number:
-                return jsonify({"error": "psalm_number is required"}), 400
+                return {"error": "psalm_number is required"}, 400
             
             # CONVERT TYPES
             try:
@@ -102,7 +101,7 @@ ANSWER:
                     verse_number = int(verse_number)
             except (ValueError, TypeError) as e:
                 logger.error(f"Type conversion error in processor: {e}")
-                return jsonify({"error": f"Invalid number format: {e}"}), 400
+                return {"error": f"Invalid number format: {e}"}, 400
             
             # USE INTELLIGENT RETRIEVER
             context = self.retriever.retrieve_relevant_context(question, psalm_number, verse_number)
@@ -120,9 +119,9 @@ ANSWER:
                 # Try fallback to psalm_query if augustine_psalm_query not found
                 if pattern == 'augustine_psalm_query':
                     prompt_template = self.prompt_templates.get('psalm_query')
-                if not prompt_template:
-                    logger.error(f"No suitable prompt template found for pattern: {pattern}")
-                    return jsonify({"error": f"No prompt template for pattern: {pattern}"}), 500
+            if not prompt_template:
+                logger.error(f"No suitable prompt template found for pattern: {pattern}")
+                return {"error": f"No prompt template for pattern: {pattern}"}, 500
             
             logger.info(f"🔍 DEBUG Using prompt template for pattern: {pattern}")
             
@@ -135,7 +134,7 @@ ANSWER:
             logger.error(f"❌ _query_psalms failed: {str(e)}")
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return jsonify({"error": f"Query processing failed: {str(e)}"}), 500
+            return {"error": f"Query processing failed: {str(e)}"}, 500
 
         
         
@@ -148,7 +147,7 @@ ANSWER:
         question = pattern_data.get('question', '')
         
         if not all([word_form, psalm_number]):
-            return jsonify({"error": "word_form and psalm_number are required"}), 400
+            return {"error": "word_form and psalm_number are required"}, 400
         
         # Create a focused question for the retriever
         focused_question = f"analyze the word {word_form} in psalm {psalm_number}"
@@ -215,7 +214,7 @@ ANSWER:
                 
         except Exception as e:
             logger.error(f"Psalm RAG query failed: {str(e)}")
-            return jsonify({"error": f"Psalm RAG query failed: {str(e)}"}), 500
+            return {"error": f"Psalm RAG query failed: {str(e)}"}, 500
             
     
     def _format_streaming_response(self, response, model, context):
@@ -296,7 +295,8 @@ ANSWER:
                 }
                 yield f"data: {json.dumps(error_chunk)}\n\n"
         
-        return Response(generate(), mimetype='text/event-stream')
+        # Return the generator function directly - the Flask route will handle the Response creation
+        return generate()
                     
    
     
@@ -341,18 +341,18 @@ ANSWER:
                 "source": "cassandra_psalms_db"
             }
             
-            return jsonify(response_data)
+            return response_data
             
         except Exception as e:
             logger.error(f"Error formatting response: {str(e)}")
-            return jsonify({"error": f"Error formatting response: {str(e)}"}), 500
+            return {"error": f"Error formatting response: {str(e)}"}
 
     def health_check(self):
         """Health check for Psalm RAG processor"""
-        db_status = self.db.health_check()
-        return jsonify({
+        db_status = self.cassandra_client.health_check()  # Updated to use cassandra_client
+        return {
             "status": "healthy",
             "processor": "psalm_rag_processor",
             "supported_patterns": ["psalm_query", "psalm_word_analysis"],
             "database": db_status
-        })
+        }

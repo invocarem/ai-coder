@@ -1,11 +1,17 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.processors.psalm_rag_processor import PsalmRAGProcessor
 
 # Create blueprint
 psalm_bp = Blueprint('psalm', __name__)
 
-# Initialize processor (you'll need to pass the AI provider)
-# This should be initialized in your main app file and imported here
+# Get the psalm processor instance
+def get_psalm_processor():
+    """Get the initialized PsalmRAGProcessor instance from current app context"""
+    if not hasattr(current_app, 'config') or 'processor_router' not in current_app.config:
+        # This might happen during app initialization
+        # In production, this should be initialized in create_app()
+        raise RuntimeError("Processor router not initialized in app context")
+    return current_app.config['processor_router'].processors['psalm_processor']
 
 @psalm_bp.route('/api/query_psalm', methods=['POST'])
 def query_psalm():
@@ -44,9 +50,23 @@ def query_psalm():
             "max_tokens": data.get('max_tokens', 2000)
         }
         
-        # Get the processor instance (you'll need to manage this)
+        # Get the processor instance
         psalm_processor = get_psalm_processor()
-        return psalm_processor.process(payload, payload.get('model'), payload.get('stream'), data)
+        
+        # Call processor and handle response
+        result = psalm_processor.process(payload, payload.get('model'), payload.get('stream'), data)
+        
+        # Handle streaming response
+        if payload.get('stream', False) and hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
+            # Return the generator directly for streaming
+            return result
+            
+        # Handle regular response
+        if isinstance(result, tuple) and len(result) == 2:
+            payload, status_code = result
+            return jsonify(payload), status_code
+        else:
+            return jsonify(result)
         
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
@@ -93,7 +113,21 @@ def analyze_psalm_word():
         
         # Get the processor instance
         psalm_processor = get_psalm_processor()
-        return psalm_processor.process(payload, payload.get('model'), payload.get('stream'), data)
+        
+        # Call processor and handle response
+        result = psalm_processor.process(payload, payload.get('model'), payload.get('stream'), data)
+        
+        # Handle streaming response
+        if payload.get('stream', False) and hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
+            # Return the generator directly for streaming
+            return result
+            
+        # Handle regular response
+        if isinstance(result, tuple) and len(result) == 2:
+            payload, status_code = result
+            return jsonify(payload), status_code
+        else:
+            return jsonify(result)
         
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
@@ -103,15 +137,14 @@ def psalm_health():
     """Health check for Psalm RAG system"""
     try:
         psalm_processor = get_psalm_processor()
-        return psalm_processor.health_check()
+        result = psalm_processor.health_check()
+        
+        # Handle regular response
+        if isinstance(result, tuple) and len(result) == 2:
+            payload, status_code = result
+            return jsonify(payload), status_code
+        else:
+            return jsonify(result)
+            
     except Exception as e:
         return jsonify({"error": f"Health check failed: {str(e)}"}), 500
-
-# Helper function to get the processor instance
-def get_psalm_processor():
-    """
-    This function should return the initialized PsalmRAGProcessor instance.
-    You'll need to manage this in your main app file.
-    """
-    from app import get_psalm_processor as get_processor
-    return get_processor()
