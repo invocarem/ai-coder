@@ -7,6 +7,8 @@ services:
       - "9042:9042"
     environment:
       - CASSANDRA_CLUSTER_NAME=AugustineCluster
+    volumes:
+      - ./data/cassandra:/var/lib/cassandra
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "DESCRIBE KEYSPACES"]
       interval: 10s
@@ -28,16 +30,14 @@ services:
     tty: true          
     stop_signal: SIGINT
     stop_grace_period: 30s
-    restart: "no"    # Optional: expose for SSE if needed later
-    # ports:
-    #   - "9090:9090"
+    restart: "no"
 
-  whitaker-mcp:                       # renamed for clarity
+  whitaker-mcp:
     container_name: ai-coder-whitaker
     build:
-      context: ./services/whitaker-server   # same folder, new Dockerfile
+      context: ./services/whitaker-server
       dockerfile: Dockerfile.whitaker-server
-    stdin_open: true                  # keep stdin open so MCP can talk
+    stdin_open: true
     tty: true          
     stop_signal: SIGINT
     stop_grace_period: 30s

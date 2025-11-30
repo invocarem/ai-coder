@@ -23,6 +23,8 @@ wheels/
 *.egg
 MANIFEST
 
+data/cassandra/
+
 # Virtual Environment
 venv/
 env/
