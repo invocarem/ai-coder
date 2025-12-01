@@ -514,16 +514,16 @@ The application uses a flexible configuration system that supports:
 
 ### Configuration Options
 
-| Variable              | Default                  | Description                                  |
-| --------------------- | ------------------------ | -------------------------------------------- |
+| Variable              | Default                  | Description                                            |
+| --------------------- | ------------------------ | ------------------------------------------------------ |
 | `AI_PROVIDER`         | `ollama`                 | AI provider to use (ollama, openai, mistral, llamacpp) |
-| `OLLAMA_BASE_URL`     | `http://localhost:11434` | Ollama server URL                            |
-| `LLAMACPP_BASE_URL`   | `http://localhost:8080`  | llama.cpp server URL                         |
-| `DEFAULT_MODEL`       | `deepseek-coder:6.7b`    | Default model to use                         |
-| `REQUEST_TIMEOUT`     | `120`                    | Request timeout in seconds                   |
-| `MAX_TOKENS`          | `4096`                   | Maximum tokens to generate                   |
-| `DEFAULT_TEMPERATURE` | `0.1`                    | Default temperature for generation           |
-| `DEFAULT_TOP_P`       | `0.9`                    | Default top_p for generation                 |
+| `OLLAMA_BASE_URL`     | `http://localhost:11434` | Ollama server URL                                      |
+| `LLAMACPP_BASE_URL`   | `http://localhost:8080`  | llama.cpp server URL                                   |
+| `DEFAULT_MODEL`       | `deepseek-coder:6.7b`    | Default model to use                                   |
+| `REQUEST_TIMEOUT`     | `120`                    | Request timeout in seconds                             |
+| `MAX_TOKENS`          | `4096`                   | Maximum tokens to generate                             |
+| `DEFAULT_TEMPERATURE` | `0.1`                    | Default temperature for generation                     |
+| `DEFAULT_TOP_P`       | `0.9`                    | Default top_p for generation                           |
 
 #### Using llama.cpp
 
@@ -638,7 +638,6 @@ For issues and questions:
 - Check the configuration and logs
 - Ensure your AI provider is properly configured and running
 
-
 ### Test pattern_detector
 
 ```bash
@@ -659,8 +658,7 @@ curl -X POST http://localhost:5000/api/query_psalm \
     "question": "How does Augustine interpret the three verbs?",
     "model": "mistral:latest"
   }'
-``` 
-
+```
 
 ### build and run docker images
 
@@ -678,7 +676,6 @@ docker rm -f $(docker ps -aq --filter ancestor=whitaker-mcp)
 docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```
 
-
 ### mcp commands
 
 ```
@@ -687,7 +684,8 @@ docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
 
-
 ### verify
+
 ```
 docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
+```
