@@ -1,7 +1,6 @@
-version: '3.8'
-
 services:
   cassandra-server:
+    container_name: cassandra-server
     image: cassandra:4.1
     ports:
       - "9042:9042"
@@ -17,7 +16,8 @@ services:
       start_period: 30s
 
   augustine-mcp:
-    container_name: ai-coder-augustine-mcp
+    container_name: augustine-mcp
+    image: augustine-mcp:latest
     build:
       context: .
       dockerfile: services/augustine-server/Dockerfile
@@ -33,7 +33,8 @@ services:
     restart: "no"
 
   whitaker-mcp:
-    container_name: ai-coder-whitaker
+    container_name: whitaker-mcp
+    image: whitaker-mcp:latest
     build:
       context: ./services/whitaker-server
       dockerfile: Dockerfile.whitaker-server

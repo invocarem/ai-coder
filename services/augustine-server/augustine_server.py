@@ -123,12 +123,57 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     
     raise ValueError(f"Unknown tool: {name}")
 
+
+def setup_logging():
+    """Configure logging to both file and console"""
+    # Create logs directory
+    log_dir = "/app/logs"
+    os.makedirs(log_dir, exist_ok=True)
+    
+    logger = logging.getLogger("augustine-mcp")
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    logger.handlers.clear()
+    
+    # File handler
+    file_handler = logging.FileHandler(
+        filename=os.path.join(log_dir, "augustine-server.log"),
+        mode='a',
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    # Formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # Add handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    # Also capture warnings
+    logging.captureWarnings(True)
+    
+    return logger
+
+
 # ----------------------------------------------------------------------
 # Entry point - stdio transport for CLINE
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     import asyncio
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    import os
+    
+    logger = setup_logging()
     
     async def main():
         logger.info("Starting Augustine MCP server...")

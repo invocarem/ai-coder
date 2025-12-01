@@ -666,12 +666,14 @@ curl -X POST http://localhost:5000/api/query_psalm \
 
 ```
 docker system prune -af
+docker compose up -d augustine-mcp whitaker-mcp
 
+# build whitaker only
 docker compose up --build -d whitaker-mcp
 docker run -it --rm --network ai-coder_default \
   -e CASSANDRA_HOST=cassandra-server \
   --entrypoint bash \
-  ai-coder-augustine-mcp
+  augustine-mcp
 docker rm -f $(docker ps -aq --filter ancestor=whitaker-mcp)
 docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```
@@ -684,3 +686,8 @@ docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 {"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
+
+
+### verify
+```
+docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
