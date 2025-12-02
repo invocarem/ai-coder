@@ -23,6 +23,7 @@ services:
       dockerfile: services/augustine-server/Dockerfile
     environment:
       - CASSANDRA_HOST=cassandra-server
+      - LOG_LEVEL=DEBUG
     depends_on:
       cassandra-server:
         condition: service_healthy

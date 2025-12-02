@@ -13,16 +13,23 @@ RUN useradd -ms /bin/bash apiuser
 # Create logs directory and assign ownership to apiuser
 RUN mkdir -p /app/logs && chown apiuser:apiuser /app/logs
 
-# Copy the entire project into the image
+# Copy entire project into /app
 COPY . /app
 
-# Install Python dependencies specifically for Augustine server
-RUN pip3 install --no-cache-dir -r services/augustine-server/requirements.txt
+# Move Augustine server files to /app root
+RUN mv /app/services/augustine-server/augustine_server.py /app/augustine_server.py && \
+    mv /app/services/augustine-server/start.sh /app/start.sh && \
+    mv /app/services/augustine-server/requirements.txt /app/requirements.txt
+
+# Remove the services directory to keep image clean
+RUN rm -rf /app/services
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
 
 # Ensure the start script has proper line endings and is executable
-RUN sed -i 's/\r$//' /app/services/augustine-server/start.sh && \
-    chmod +x /app/services/augustine-server/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Launch the MCP server via stdio
-# Use bash explicitly to handle line endings and ensure proper execution
-ENTRYPOINT ["/bin/bash", "/app/services/augustine-server/start.sh"]
+ENTRYPOINT ["/bin/bash", "/app/start.sh"]

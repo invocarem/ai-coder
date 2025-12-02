@@ -79,32 +79,42 @@ async def list_tools() -> List[Tool]:
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "analyze_psalm":
         try:
+            # Extract required parameters with proper fallbacks
+            pattern_data = arguments.get("pattern_data", {})
+            model = arguments.get("model")
+            stream = arguments.get("stream", False)
+            original_data = arguments.get("original_data", {})
+            
+            # Validate required parameters
+            if not pattern_data:
+                return [TextContent(type="text", text=json.dumps({"error": "pattern_data is required"}, ensure_ascii=False))]
+            if not model:
+                return [TextContent(type="text", text=json.dumps({"error": "model is required"}, ensure_ascii=False))]
+                
+            # Ensure pattern_data has the required 'pattern' field
+            if "pattern" not in pattern_data:
+                return [TextContent(type="text", text=json.dumps({"error": "pattern_data must contain 'pattern' field"}, ensure_ascii=False))]
+                
+            # Pass all parameters to processor
             result = processor.process(
-                arguments["pattern_data"],
-                arguments["model"],
-                arguments.get("stream", False),
-                arguments.get("original_data", {}),
+                pattern_data,
+                model,
+                stream,
+                original_data
             )
             
             # Handle streaming response
-            if arguments.get("stream", False) and hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
-                # For streaming responses, we need to handle the generator differently
-                # Since MCP expects a list of TextContent, we'll collect the entire stream
-                # This is a limitation of the current MCP protocol for streaming
-                # In production, you might want to handle streaming differently
+            if stream and hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
+                # For streaming responses, collect the entire stream
                 full_response = ""
                 for chunk in result:
                     if isinstance(chunk, str):
                         full_response += chunk
-                # Extract just the JSON content from the stream
-                # This is a simplified approach - in practice you'd want to parse the SSE stream
                 return [TextContent(type="text", text=json.dumps({"content": full_response}, ensure_ascii=False))]
             
             # Handle regular response (dictionary with possible status code)
             if isinstance(result, tuple) and len(result) == 2:
                 payload, status_code = result
-                # For MCP, we'll return the payload regardless of status code
-                # The client should handle HTTP status codes appropriately
                 return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
             else:
                 return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -112,8 +122,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         except Exception as e:
             logger.error(f"Error in analyze_psalm: {e}")
             return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
-    
-    if name == "get_psalm_health":
+    elif name == "get_psalm_health":
         try:
             health = processor.health_check()
             return [TextContent(type="text", text=json.dumps(health, ensure_ascii=False))]

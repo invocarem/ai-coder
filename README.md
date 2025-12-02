@@ -689,4 +689,44 @@ docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ```
 docker exec augustine-mcp cat /app/augustine_server.log
 docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
+
+docker-compose exec -T augustine-mcp /app/start.sh
 ```
+
+
+### mcp_serer settings
+
+```
+ "mcpServers": {
+    "whitaker-mcp": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "docker-compose",
+      "args": [
+        "-f",
+        "c:/code/github/ai-coder/docker-compose.yml",
+        "exec",
+        "-T",
+        "whitaker-mcp",
+        "python3",
+        "/app/whitaker_server.py"
+      ]
+    },
+    "augustine-mcp": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "docker-compose",
+      "args": [
+        "-f",
+        "c:/code/github/ai-coder/docker-compose.yml",
+        "exec",
+        "-T",
+        "augustine-mcp",
+        "/app/start.sh"
+      ]
+    }
+  }
+
+```  
