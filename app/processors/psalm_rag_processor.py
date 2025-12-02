@@ -37,7 +37,7 @@ INSTRUCTIONS:
 
 ANSWER:
 """,
-            "word_analysis": """
+            "psalm_word_analysis": """
 Analyze the Latin word **{word_form}** in the context of Psalm {psalm_number}.
 
 CONTEXT:
@@ -161,7 +161,7 @@ ANSWER:
             location = f"Psalm {psalm_number}" + (f":{verse_number}" if verse_number else "")
             question = f"Analyze the word '{word_form}' in {location}"
         
-        prompt = self.prompt_templates['word_analysis'].format(
+        prompt = self.prompt_templates['psalm_word_analysis'].format(
             word_form=word_form, psalm_number=psalm_number,
             context=context, question=question
         )
