@@ -687,5 +687,6 @@ docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 ### verify
 
 ```
+docker exec augustine-mcp cat /app/augustine_server.log
 docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
 ```

@@ -43,3 +43,4 @@ services:
     stop_signal: SIGINT
     stop_grace_period: 30s
     restart: "no"
+    command: ["python", "/app/whitaker_server.py"]
