@@ -726,7 +726,23 @@ docker-compose exec -T augustine-mcp /app/start.sh
         "augustine-mcp",
         "/app/start.sh"
       ]
-    }
+    } 
+
+
+    "augustine-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "augustine-mcp",
+        "/bin/bash",
+        "-c",
+        "cd /app && python3 -u /app/augustine_server.py"
+      ]
+    },
   }
 
 ```  
