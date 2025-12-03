@@ -1,4 +1,25 @@
 # scripts/test_psalm_rag_live.py
+"""
+Test script for Psalm RAG processor.
+
+This script tests the Flask server endpoints. The Flask server then connects to:
+- LlamaCpp AI server (configured via LLAMACPP_BASE_URL environment variable in Flask app)
+- Cassandra database (configured via CASSANDRA_HOSTS environment variable in Flask app)
+
+Usage:
+    # Test against localhost
+    python scripts/test_psalm_rag_live.py
+    
+    # Test against remote server
+    python scripts/test_psalm_rag_live.py --base-url http://100.109.56.33:5000
+    
+    # Or use environment variable
+    export PSALM_RAG_BASE_URL=http://100.109.56.33:5000
+    python scripts/test_psalm_rag_live.py
+
+Note: The Flask server must have LLAMACPP_BASE_URL configured to point to the AI server
+      (e.g., LLAMACPP_BASE_URL=http://100.109.56.33:8080 in the Flask app's environment)
+"""
 import requests
 import time
 import sys
@@ -6,7 +27,16 @@ import os
 import argparse
 
 class PsalmRAGLiveTester:
-    """Test the Psalm RAG processor running on localhost:5000"""
+    """
+    Test the Psalm RAG processor running on Flask server.
+    
+    Args:
+        base_url: Base URL of the Flask server (default: http://localhost:5000)
+                  This is the server that receives HTTP requests.
+                  The Flask server internally connects to:
+                  - LlamaCpp AI server (via LLAMACPP_BASE_URL config)
+                  - Cassandra database (via CASSANDRA_HOSTS config)
+    """
     
     def __init__(self, base_url="http://localhost:5000"):
         self.base_url = base_url
@@ -344,12 +374,35 @@ class PsalmRAGLiveTester:
         return passed == total
 
 def main():
-    """Main function to run Psalm RAG live server tests"""
-    parser = argparse.ArgumentParser(description="Run Psalm RAG live server tests.")
+    """
+    Main function to run Psalm RAG live server tests.
+    
+    The base_url parameter points to the Flask server (port 5000).
+    The Flask server must be configured with:
+    - LLAMACPP_BASE_URL: URL of the LlamaCpp AI server (e.g., http://100.109.56.33:8080)
+    - CASSANDRA_HOSTS: Cassandra database host (e.g., 100.109.56.33 or 127.0.0.1)
+    """
+    parser = argparse.ArgumentParser(
+        description="Run Psalm RAG live server tests.",
+        epilog="""
+Examples:
+  # Test localhost Flask server
+  python scripts/test_psalm_rag_live.py
+  
+  # Test remote Flask server
+  python scripts/test_psalm_rag_live.py --base-url http://100.109.56.33:5000
+  
+  # Use environment variable
+  export PSALM_RAG_BASE_URL=http://100.109.56.33:5000
+  python scripts/test_psalm_rag_live.py
+
+Note: The Flask server must have LLAMACPP_BASE_URL configured to connect to the AI server.
+        """
+    )
     parser.add_argument(
         "--base-url",
         default=os.getenv("PSALM_RAG_BASE_URL", "http://localhost:5000"),
-        help="Base URL of the Psalm RAG server (e.g., http://myhost:5000)",
+        help="Base URL of the Flask server (default: http://localhost:5000 or PSALM_RAG_BASE_URL env var)",
     )
     args = parser.parse_args()
     tester = PsalmRAGLiveTester(base_url=args.base_url)
