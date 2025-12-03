@@ -141,9 +141,13 @@ class ProcessorRouter:
             try:
                 if hasattr(processor, 'health_check'):
                     processor_health = processor.health_check()
+                    # Handle both dict and tuple responses from health_check
+                    if isinstance(processor_health, tuple) and len(processor_health) == 2:
+                        # It's a (data, status_code) tuple
+                        processor_health = processor_health[0]
                     health_status["processors"][name] = {
                         "status": "healthy",
-                        "details": processor_health.get_json() if hasattr(processor_health, 'get_json') else processor_health
+                        "details": processor_health
                     }
                 else:
                     health_status["processors"][name] = {"status": "healthy", "details": "No health check method"}

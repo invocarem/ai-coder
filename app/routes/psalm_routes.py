@@ -40,7 +40,7 @@ def query_psalm():
         
         # Create payload for psalm_rag_processor
         payload = {
-            "pattern": "psalm_query",
+            "pattern": "augustine_psalm_query",
             "psalm_number": psalm_number,
             "verse_number": data.get('verse_number'),
             "question": data.get('question', ''),

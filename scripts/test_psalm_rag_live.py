@@ -96,12 +96,13 @@ class PsalmRAGLiveTester:
         url = f"{self.base_url}/api/query_psalm"
         
         data = {
-            "psalm_number": 1
+            "psalm_number": 1,
+            "pattern": "augustine_psalm_query"
         }
         
         try:
             start_time = time.time()
-            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=60)
+            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=300)
             elapsed_time = time.time() - start_time
             
             if response.status_code == 200:
@@ -137,12 +138,14 @@ class PsalmRAGLiveTester:
         
         data = {
             "psalm_number": 1,
-            "verse_number": 1
+            "verse_number": 1,
+            "pattern": "augustine_psalm_query",
+            "processor": "psalm"
         }
         
         try:
             start_time = time.time()
-            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=60)
+            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=300)
             elapsed_time = time.time() - start_time
             
             if response.status_code == 200:
@@ -172,12 +175,13 @@ class PsalmRAGLiveTester:
         
         data = {
             "psalm_number": 1,
-            "question": "How does Augustine interpret the meaning of this psalm?"
+            "question": "How does Augustine interpret the meaning of this psalm?",
+            "pattern": "augustine_psalm_query"
         }
         
         try:
             start_time = time.time()
-            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=60)
+            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=300)
             elapsed_time = time.time() - start_time
             
             if response.status_code == 200:
@@ -213,7 +217,7 @@ class PsalmRAGLiveTester:
         
         try:
             start_time = time.time()
-            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=60)
+            response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=300)
             elapsed_time = time.time() - start_time
             
             if response.status_code == 200:

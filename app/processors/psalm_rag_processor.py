@@ -63,7 +63,7 @@ ANSWER:
             logger.info(f"🔍 DEBUG Processing pattern: {pattern}")
             logger.info(f"🔍 DEBUG Available patterns: {list(self.prompt_templates.keys())}")
 
-            if pattern in ['psalm_query', 'augustine_psalm_query']:
+            if pattern == 'augustine_psalm_query':
                 logger.info(f"🔍 DEBUG Routing to _query_psalms with pattern: {pattern}")
                 return self._query_psalms(pattern_data, model, stream, original_data)
             elif pattern == 'psalm_word_analysis':
@@ -115,13 +115,12 @@ ANSWER:
             # FIX: Use the actual pattern variable, not hardcoded 'psalm_query'
             prompt_template = self.prompt_templates.get(pattern)
             if not prompt_template:
-                logger.warning(f"Pattern {pattern} not found in templates, available: {list(self.prompt_templates.keys())}")
-                # Try fallback to psalm_query if augustine_psalm_query not found
-                if pattern == 'augustine_psalm_query':
-                    prompt_template = self.prompt_templates.get('psalm_query')
-            if not prompt_template:
-                logger.error(f"No suitable prompt template found for pattern: {pattern}")
-                return {"error": f"No prompt template for pattern: {pattern}"}, 500
+                # If pattern is psalm_query, use augustine_psalm_query as fallback
+                if pattern == 'psalm_query':
+                    prompt_template = self.prompt_templates.get('augustine_psalm_query')
+                if not prompt_template:
+                    logger.error(f"No suitable prompt template found for pattern: {pattern}, available: {list(self.prompt_templates.keys())}")
+                    return {"error": f"No prompt template for pattern: {pattern}"}, 500
             
             logger.info(f"🔍 DEBUG Using prompt template for pattern: {pattern}")
             
@@ -304,7 +303,9 @@ ANSWER:
     def _format_response(self, response, model, context):
         """Format non-streaming response"""
         try:
-            if hasattr(response, 'get') and 'choices' in response:
+            if isinstance(response, str):
+                content = response
+            elif hasattr(response, 'get') and 'choices' in response:
                 content = response["choices"][0]["message"]["content"]
             elif hasattr(response, 'get') and 'response' in response:
                 content = response["response"]
@@ -348,11 +349,19 @@ ANSWER:
             return {"error": f"Error formatting response: {str(e)}"}
 
     def health_check(self):
-        """Health check for Psalm RAG processor"""
-        db_status = self.cassandra_client.health_check()  # Updated to use cassandra_client
+        db_status_str = self.cassandra_client.health_check()
+        # Parse string to extract status
+        if "✅" in db_status_str:
+            db_status = {"status": "healthy", "message": db_status_str}
+        elif "⚠️" in db_status_str:
+            db_status = {"status": "warning", "message": db_status_str}
+        else:
+            db_status = {"status": "unhealthy", "message": db_status_str}
+        
         return {
             "status": "healthy",
             "processor": "psalm_rag_processor",
-            "supported_patterns": ["psalm_query", "psalm_word_analysis"],
-            "database": db_status
+            "supported_patterns": ["augustine_psalm_query", "psalm_word_analysis"],
+            "database": db_status  # Now a dict, not a string
         }
+
