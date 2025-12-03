@@ -7,7 +7,7 @@ import os
 class PsalmRAGLiveTester:
     """Test the Psalm RAG processor running on localhost:5000"""
     
-    def __init__(self, base_url="http://100.109.56.33:5000"):
+    def __init__(self, base_url="http://localhost:5000"):
         self.base_url = base_url
         self.results = []
     
