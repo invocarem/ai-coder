@@ -3,6 +3,7 @@ import requests
 import time
 import sys
 import os
+import argparse
 
 class PsalmRAGLiveTester:
     """Test the Psalm RAG processor running on localhost:5000"""
@@ -344,7 +345,14 @@ class PsalmRAGLiveTester:
 
 def main():
     """Main function to run Psalm RAG live server tests"""
-    tester = PsalmRAGLiveTester()
+    parser = argparse.ArgumentParser(description="Run Psalm RAG live server tests.")
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("PSALM_RAG_BASE_URL", "http://localhost:5000"),
+        help="Base URL of the Psalm RAG server (e.g., http://myhost:5000)",
+    )
+    args = parser.parse_args()
+    tester = PsalmRAGLiveTester(base_url=args.base_url)
     success = tester.run_all_tests()
     
     # Exit with appropriate code for CI/CD
