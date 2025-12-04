@@ -54,10 +54,22 @@ async def list_tools() -> List[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "pattern_data": {"type": "object"},
-                    "model": {"type": "string"},
-                    "stream": {"type": "boolean"},
-                    "original_data": {"type": "object"}
+                    "pattern_data": {
+                        "type": "object",
+                        "description": "An object containing analysis parameters. Must include 'pattern' with value 'augustine_psalm_query' or 'psalm_word_analysis'. May include 'psalm_number', 'verse_number', and 'question' fields."
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "The AI model to use for processing the query (e.g., 'gpt-4', 'llama3')."
+                    },
+                    "stream": {
+                        "type": "boolean",
+                        "description": "If true, returns a streaming response. If false, returns a single completed response."
+                    },
+                    "original_data": {
+                        "type": "object",
+                        "description": "Additional metadata or configuration to pass through to the underlying processor (e.g., temperature, top_p)."
+                    }
                 },
                 "required": ["pattern_data", "model"]
             }
@@ -68,11 +80,26 @@ async def list_tools() -> List[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "pattern": {"type": "string"},
-                    "psalm_number": {"type": "integer"},
-                    "verse_number": {"type": ["integer", "null"]},
-                    "question": {"type": "string"},
-                    "model": {"type": "string"}
+                    "pattern": {
+                        "type": "string",
+                        "description": "The type of analysis to perform: 'augustine_psalm_query' for theological interpretation or 'psalm_word_analysis' for Latin word morphology analysis."
+                    },
+                    "psalm_number": {
+                        "type": "integer",
+                        "description": "The psalm number (integer) to analyze. Required."
+                    },
+                    "verse_number": {
+                        "type": ["integer", "null"],
+                        "description": "The verse number (integer) to analyze. Optional. If omitted, analyzes the entire psalm."
+                    },
+                    "question": {
+                        "type": "string",
+                        "description": "The specific question to ask about the psalm or word. If omitted, a default question is generated based on context."
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "The AI model to use for processing the query (e.g., 'gpt-4', 'llama3')."
+                    }
                 },
                 "required": ["pattern", "psalm_number", "model"]
             }
