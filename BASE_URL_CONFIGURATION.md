@@ -4,7 +4,7 @@ This document explains how base URLs are used in the Psalm RAG system.
 
 ## Architecture Overview
 
-```
+``` 
 ┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
 │  Test Script    │────────▶│  Flask Server    │────────▶│  LlamaCpp AI    │
 │  (test script)  │         │  (port 5000)     │         │  (port 8080)    │
@@ -15,6 +15,23 @@ This document explains how base URLs are used in the Psalm RAG system.
                             │  Cassandra DB    │
                             │  (port 9042)     │
                             └──────────────────┘
+```
+
+## Additional Component: Augustine-MCP Server
+
+The Augustine-MCP server is an MCP server that can be directly accessed by CLINE for RAG-based psalm analysis. It connects to both Cassandra DB and LlamaCpp AI server internally:
+
+```
+┌─────────────────┐         ┌──────────────────┐
+│    CLINE        │────────▶│ Augustine-MCP  │
+│                 │         │  (port 9090)   │
+└─────────────────┘         └──────────────────┘
+                                   │        │
+                                   ▼        ▼
+                          ┌──────────────────┐ ┌─────────────────┐
+                          │  Cassandra DB    │ │  LlamaCpp AI    │
+                          │  (port 9042)     │ │  (port 8080)    │
+                          └──────────────────┘ └─────────────────┘
 ```
 
 ## Two Different Base URLs
@@ -37,6 +54,15 @@ This document explains how base URLs are used in the Psalm RAG system.
   - Environment variable in Flask app: `LLAMACPP_BASE_URL=http://100.109.56.33:8080`
   - Also requires: `AI_PROVIDER=llamacpp`
 
+### 3. Augustine-MCP Server URL (for RAG processing)
+
+- **Purpose**: Where CLINE connects directly to for RAG-based psalm analysis using the Augustine-MCP server. This service internally queries Cassandra DB for context and calls LlamaCpp AI for response generation.
+- **Used in**: CLINE (direct access to MCP server)
+- **Default**: `http://localhost:9090`
+- **Configuration**:
+  - Environment variable in CLINE: `AUGUSTINE_MCP_BASE_URL=http://100.109.56.33:9090`
+  - Also requires: `USE_AUGUSTINE_MCP=true`
+
 ## Configuration Steps
 
 ### For Your Setup (100.109.56.33)
@@ -51,6 +77,10 @@ This document explains how base URLs are used in the Psalm RAG system.
    # AI Provider configuration
    AI_PROVIDER=llamacpp
    LLAMACPP_BASE_URL=http://100.109.56.33:8080
+
+   # Augustine-MCP configuration for Latin analysis
+   USE_AUGUSTINE_MCP=true
+   AUGUSTINE_MCP_BASE_URL=http://100.109.56.33:9090
 
    # Database configuration
    CASSANDRA_HOSTS=100.109.56.33  # or 127.0.0.1 if running locally
@@ -90,6 +120,15 @@ This document explains how base URLs are used in the Psalm RAG system.
    - Makes HTTP request to: `POST {LLAMACPP_BASE_URL}/v1/chat/completions`
    - Example: `POST http://100.109.56.33:8080/v1/chat/completions`
 
+5. **RAG Processing** (CLINE access):
+   - When `USE_AUGUSTINE_MCP=true`, CLINE connects directly to Augustine-MCP server
+   - Makes HTTP request to: `POST {AUGUSTINE_MCP_BASE_URL}/tools/analyze_psalm` or `POST {AUGUSTINE_MCP_BASE_URL}/tools/ask_augustine`
+   - Example: `POST http://100.109.56.33:9090/tools/ask_augustine`
+   - The Augustine-MCP server internally:
+     * Queries Cassandra DB for psalm context
+     * Calls LlamaCpp AI server for generation
+     * Returns structured RAG responses
+
 ## Verification
 
 To verify your configuration is correct:
@@ -106,7 +145,19 @@ To verify your configuration is correct:
    curl http://100.109.56.33:5000/v1/models
    ```
 
-3. **Run the test script**:
+3. **Check CLINE can reach Augustine-MCP**:
+
+   ```bash
+   curl -X POST http://100.109.56.33:9090 -d '{"method": "list_tools"}'
+   ```
+
+4. **Test Augustine-MCP RAG functionality**:
+
+   ```bash
+   curl -X POST http://100.109.56.33:9090 -d '{"method": "ask_augustine", "params": {"pattern": "augustine_psalm_query", "psalm_number": 23, "model": "deepseek-coder:6.7b"}}'
+   ```
+
+5. **Run the test script**:
    ```bash
    python scripts/test_psalm_rag_live.py --base-url http://100.109.56.33:5000
    ```
