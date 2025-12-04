@@ -64,17 +64,15 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="ask_augustine",
-            description="Ask Augustine a question about a psalm using simplified parameters: pattern, psalm_number, verse_number, and question. This is the recommended interface.",
+            description="Ask Augustine a question about a psalm.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "pattern": {"type": "string", "enum": ["augustine_psalm_query", "psalm_word_analysis"]},
+                    "pattern": {"type": "string"},
                     "psalm_number": {"type": "integer"},
-                    "verse_number": {"type": "integer", "nullable": true},
+                    "verse_number": {"type": ["integer", "null"]},
                     "question": {"type": "string"},
-                    "model": {"type": "string"},
-                    "stream": {"type": "boolean"},
-                    "original_data": {"type": "object"}
+                    "model": {"type": "string"}
                 },
                 "required": ["pattern", "psalm_number", "model"]
             }
