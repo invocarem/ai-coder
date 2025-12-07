@@ -116,22 +116,13 @@ Additional requirements:
                 response = self.ai_provider.generate_openai_compatible(messages, model, stream=True, **options)
                 return self._format_streaming_response(response, model)
             else:
-                # Handle non-streaming response
+                # Handle non-streaming response as true relay
                 messages = [{"role": "user", "content": filled_prompt}]
                 response = self.ai_provider.generate_openai_compatible(messages, model, stream=False, **options)
-                
-                # Extract response based on provider
-                if hasattr(response, 'get') and 'choices' in response:  # OpenAI format
-                    text = response["choices"][0]["message"]["content"]
-                elif hasattr(response, 'get') and 'response' in response:  # Ollama format
-                    text = response["response"]
-                else:
-                    text = str(response)
-                    
                 return Response(
-                    json.dumps({"text": text}),
+                    json.dumps(response),
                     mimetype='application/json; charset=utf-8'
-                )            
+                )
                 
         except requests.exceptions.RequestException as e:
             return jsonify({"error": f"AI provider connection error: {str(e)}"}), 503
@@ -464,7 +455,10 @@ Additional requirements:
                 return self._format_streaming_response(response, model)
             else:
                 response = self.ai_provider.generate_openai_compatible(messages, model, stream=False, **options)
-                return self._format_openai_response(response, model)
+                return Response(
+                    json.dumps(response),
+                    mimetype='application/json; charset=utf-8'
+                )
             
         except Exception as e:
             return jsonify({"error": f"Pattern processing failed: {str(e)}"}), 500
