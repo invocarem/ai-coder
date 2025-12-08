@@ -693,7 +693,6 @@ docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
 docker-compose exec -T augustine-mcp /app/start.sh
 ```
 
-
 ### mcp_serer settings
 
 ```
@@ -726,7 +725,7 @@ docker-compose exec -T augustine-mcp /app/start.sh
         "augustine-mcp",
         "/app/start.sh"
       ]
-    } 
+    }
 
 
     "augustine-server": {
@@ -745,4 +744,19 @@ docker-compose exec -T augustine-mcp /app/start.sh
     },
   }
 
-```  
+```
+
+### Example env file
+
+a basic env file
+
+
+```
+CASSANDRA_HOSTS=localhost
+CASSANDRA_CLOUD=false
+
+AI_PROVIDER=llamacpp
+LLAMACPP_BASE_URL=http://localhost:8080
+DEFAULT_MODEL=deepseek-coder:6.7b
+REQUEST_TIMEOUT=240
+```
