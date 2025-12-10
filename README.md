@@ -688,6 +688,9 @@ docker rm -f $(docker ps -aq --filter ancestor=augustine-mcp)
 
 ```
 docker exec augustine-mcp cat /app/augustine_server.log
+
+# copy the whole /app/los to local folder
+docker cp augustine-mcp:/app/logs ./augustine-logs
 docker exec cassandra-server cqlsh -e "DESCRIBE KEYSPACES"
 
 docker-compose exec -T augustine-mcp /app/start.sh
