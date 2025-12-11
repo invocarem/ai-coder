@@ -1,0 +1,1 @@
+analyze latin: invenietur, provide lemma (first person present form), conjugation number and translation. No breakdown or explanation.
