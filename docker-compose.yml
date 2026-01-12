@@ -27,8 +27,8 @@ services:
     depends_on:
       cassandra-server:
         condition: service_healthy
-    stdin_open: true                  # keep stdin open so MCP can talk
-    tty: true          
+    stdin_open: true # keep stdin open so MCP can talk
+    tty: true
     stop_signal: SIGINT
     stop_grace_period: 30s
     restart: "no"
@@ -40,8 +40,21 @@ services:
       context: ./services/whitaker-server
       dockerfile: Dockerfile.whitaker-server
     stdin_open: true
-    tty: true          
+    tty: true
     stop_signal: SIGINT
     stop_grace_period: 30s
     restart: "no"
     command: ["python", "/app/whitaker_server.py"]
+
+  word-to-md-mcp:
+    container_name: word-to-md-mcp
+    image: word-to-md-mcp:latest
+    build:
+      context: ./services/word-to-md
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    restart: "no"
+    command: ["python", "/app/word_to_md_server.py"]
